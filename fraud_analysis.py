@@ -214,19 +214,11 @@ class FraudInvestigator:
         df_main = pd.DataFrame(self.cases).drop(columns=['calls_data', 'market_data'])
         df_main.to_csv(self.output_dir / "fraud_cases_detected.csv", index=False)
 
-        for case in self.cases:
-            f_acc = case['fraud_account']
-
-            if case['has_market_activity']:
-                pd.DataFrame(case['market_data']).to_csv(
-                    self.output_dir / f"market_activity_{f_acc}.csv", index=False
-                )
-
 
 if __name__ == "__main__":
     investigator = FraudInvestigator(
-        db_path='data/sql/ecosystem_data.db',
-        complaints_path='data/sql/bank_complaints.tsv',
-        output_dir='data/sql/'
+        db_path='data/ecosystem_data.db',
+        complaints_path='data/bank_complaints.tsv',
+        output_dir='data/'
     )
     investigator.run()
