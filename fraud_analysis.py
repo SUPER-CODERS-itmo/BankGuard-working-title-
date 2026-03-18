@@ -222,16 +222,11 @@ class FraudInvestigator:
                     self.output_dir / f"market_activity_{f_acc}.csv", index=False
                 )
 
-            if case['has_calls']:
-                pd.DataFrame(case['calls_data']).to_csv(
-                    self.output_dir / f"calls_history_{f_acc}.csv", index=False
-                )
-
 
 if __name__ == "__main__":
     investigator = FraudInvestigator(
-        db_path='data/ecosystem_data.db',
-        complaints_path='data/bank_complaints.tsv',
-        output_dir='data'
+        db_path='data/sql/ecosystem_data.db',
+        complaints_path='data/sql/bank_complaints.tsv',
+        output_dir='data/sql/'
     )
     investigator.run()
