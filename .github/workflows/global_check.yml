@@ -1,0 +1,38 @@
+name: Global Integration Test
+
+on:
+  push:
+    branches:
+      - back
+      - tests
+  pull_request:
+    branches:
+      - back
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Installing frameworks
+        run: |
+          pip install pandas numpy 
+
+      - name: Download application
+        uses: actions/checkout@v4
+        with:
+          ref: back
+          path: app_code
+
+      - name: Download all tests
+        uses: actions/checkout@v4
+        with:
+          ref: tests
+          path: global_tests
+      - name: Run all tests
+        run: |
+          cd app_code
+          python -m unittest discover -s ../global_tests
