@@ -69,5 +69,7 @@ jobs:
           # Если есть специфичные либы, добавь их сюда или создай requirements.txt
 
       # 5. Сборка и деплой
-      - name: Build and Deploy
+      - name: Build and Deploy to GitHub Pages
         run: mkdocs gh-deploy --force
+        env:
+          PYTHONPATH: ".:src_back:src_tests:src_alice:src_sasha"

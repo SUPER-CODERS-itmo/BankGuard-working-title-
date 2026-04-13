@@ -57,9 +57,7 @@ plugins:
 
 nav:
   - Главная: index.md
-  - Общий Бэкенд: backend.md
-  - Разработка Alice: alice.md
-  - Разработка Sasha: sasha.md
+  - Бэкенд: backend.md
   - Тестирование: tests.md
 
 markdown_extensions:
