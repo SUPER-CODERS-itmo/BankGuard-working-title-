@@ -1,5 +1,8 @@
 # BEN: Система мониторинга и оперативного уведомления о подозрительных транзакциях 
 
+[![Documentation](https://img.shields.io/badge/docs-MkDocs--Material-blue.svg)](https://super-coders-itmo.github.io/BEN/)
+[![Build Status](https://github.com/SUPER-CODERS-itmo/BEN/actions/workflows/docs.yml/badge.svg)](https://github.com/SUPER-CODERS-itmo/BEN/actions/workflows/docs.yml)
+[![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 
 
 ## 📌 Обзор проекта
