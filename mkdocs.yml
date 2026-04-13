@@ -41,16 +41,14 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          setup_commands:
-            - import sys
-            # Добавляем все выкачанные ветки в пути Python
-            - sys.path.append(".")
-            - sys.path.append("src_back")
-            - sys.path.append("src_alice")
-            - sys.path.append("src_sasha")
-            - sys.path.append("src_tests")
-            - sys.path.append("src_bus_front")
-            - sys.path.append("src_ega_front")
+          paths:
+            - .
+            - src_back
+            - src_alice
+            - src_sasha
+            - src_tests
+            - src_bus_front
+            - src_ega_front
           options:
             show_source: true
             show_root_heading: true
