@@ -1,0 +1,76 @@
+site_name: "BEN: Banking Ecosystem Network"
+site_url: "https://SUPER-CODERS-itmo.github.io/BEN/"
+repo_url: https://github.com/SUPER-CODERS-itmo/BEN
+repo_name: SUPER-CODERS-itmo/BEN
+edit_uri: edit/main/docs/
+
+
+theme:
+  name: material
+  language: ru
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Темная тема
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Светлая тема
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+    - search.share
+    - navigation.expand
+    - navigation.path
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          setup_commands:
+            - import sys
+            # Добавляем все выкачанные ветки в пути Python
+            - sys.path.append(".")
+            - sys.path.append("src_back")
+            - sys.path.append("src_alice")
+            - sys.path.append("src_sasha")
+            - sys.path.append("src_tests")
+            - sys.path.append("src_bus_front")
+            - sys.path.append("src_ega_front")
+          options:
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+            members_order: alphabetical
+
+nav:
+  - Главная: index.md
+  - Общий Бэкенд: backend.md
+  - Разработка Alice: alice.md
+  - Разработка Sasha: sasha.md
+  - Тестирование: tests.md
+
+markdown_extensions:
+  - admonition          # Цветные блоки "Внимание", "Инфо"
+  - pymdownx.details    # Сворачивающиеся блоки (спойлеры)
+  - pymdownx.superfences # Правильная подсветка кода
+  - pymdownx.emoji:     # Эмодзи как в GitHub
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.tasklist:   # Чек-листы (галочки)
+      custom_checkbox: true
+  - attr_list           # Позволяет менять размеры картинок {: width="300"}
