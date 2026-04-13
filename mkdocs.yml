@@ -46,7 +46,7 @@ plugins:
             - src_back
             - src_alice
             - src_sasha
-            - src_tests
+            - src_tests/tests
             - src_bus_front
             - src_ega_front
           options:
@@ -59,6 +59,7 @@ nav:
   - Главная: index.md
   - Бэкенд: backend.md
   - Тестирование: tests.md
+  - Telegram Bot: tg.md
 
 markdown_extensions:
   - admonition          # Цветные блоки "Внимание", "Инфо"
