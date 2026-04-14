@@ -71,3 +71,26 @@
 .doc-contents, .doc-heading, .md-typeset code {
   color: #ffffff !important;
 }
+
+/* Перекрашиваем полосу табов (под шапкой) в лайм */
+.md-tabs {
+  background-color: #C3FC6D !important;
+}
+
+/* Делаем текст в табах черным, как в шапке */
+.md-tabs__link {
+  color: #000000 !important;
+  opacity: 0.7; /* Неактивные чуть тусклее */
+}
+
+/* Активный таб - чисто черный и жирный */
+.md-tabs__link--active {
+  color: #000000 !important;
+  opacity: 1 !important;
+  font-weight: bold !important;
+}
+
+/* Цвет индикатора (полоска под активным табом) — делаем черным или чуть темнее лайма */
+.md-tabs__link--active::after {
+  background-color: #000000 !important;
+}
