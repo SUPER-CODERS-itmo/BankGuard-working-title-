@@ -1,43 +1,72 @@
-/* Перекрашиваем основные переменные темы */
-:root, [data-md-color-scheme="slate"], [data-md-color-scheme="default"] {
-  --md-primary-fg-color: #C3FC6D !important;
-  --md-primary-fg-color--light: #d6ff9e !important;
-  --md-primary-fg-color--dark: #a8e05a !important;
-  --md-primary-bg-color: #000000 !important;
-  --md-primary-bg-color--light: rgba(195, 252, 109, 0.1) !important;
-}
-
-/* Красим шапку сайта */
-header.md-header {
+/* ========================================= */
+/*                   ШАПКА                   */
+/* ========================================= */
+.md-header {
   background-color: #C3FC6D !important;
 }
 
-/* Текст и кнопки в шапке (делаем черными для контраста) */
+/* Черный текст и иконки в лаймовой шапке */
 .md-header__title,
 .md-header__button,
-.md-header__topic,
 .md-tabs__link,
 .md-source__repository,
-.md-source__icon {
+.md-source__icon,
+.md-search__icon,
+.md-search__input::placeholder {
   color: #000000 !important;
 }
 
-/* Активный таб в навигации */
+/* Активный таб в шапке тоже черный */
 .md-tabs__link--active {
   color: #000000 !important;
   opacity: 1 !important;
-  font-weight: 800 !important;
+  font-weight: bold;
 }
 
-/* Цвет строки поиска */
-.md-search__input {
-  color: #000000 !important;
-}
-.md-search__icon {
-  color: #000000 !important;
+/* ========================================= */
+/*                КОНТЕНТ СТРАНИЦЫ           */
+/* ========================================= */
+
+/* Основной текст на всех страницах */
+:root {
+  --md-typeset-color: #FFFFFF !important;
 }
 
-/* Полоска под табами */
-.md-tabs {
-  background-color: #C3FC6D !important;
+/* Все заголовки (Тестирование, Бэкенд и т.д.) */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  color: #FFFFFF !important;
+}
+
+/* Левое меню (навигация) */
+.md-nav__link {
+  color: rgba(255, 255, 255, 0.7) !important; /* Неактивные чуть тусклее */
+}
+
+/* Активный пункт в левом меню (тот самый синий на скрине) */
+.md-nav__link--active,
+.md-nav__link--current {
+  color: #FFFFFF !important;
+  font-weight: bold !important;
+}
+
+/* Правое меню (Содержание страницы) */
+.md-sidebar--secondary .md-nav__link {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.md-sidebar--secondary .md-nav__link--active {
+  color: #FFFFFF !important;
+}
+
+/* Текст внутри автоматической документации (кода) */
+.doc-contents, .doc-heading {
+  color: #FFFFFF !important;
+}
+
+/* Ссылки внутри текста сделаем лаймовыми, чтобы их было видно на черном */
+.md-typeset a {
+  color: #C3FC6D !important;
 }
