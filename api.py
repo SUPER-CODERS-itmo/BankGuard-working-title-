@@ -1,10 +1,10 @@
 import aiosqlite
 import pandas as pd
 from pathlib import Path
+from typing import List, Optional, Dict, Any
+
 from fastapi import FastAPI, Depends, HTTPException, Query, Header
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
-from typing import List, Optional
 
 from fraud_analysis import EcosystemDB, AmountExtractor
 
@@ -19,10 +19,13 @@ COMPLAINTS_TSV = 'data/bank_complaints.tsv'
 
 
 @app.on_event("startup")
-async def startup_event():
-    """Переносим TSV в SQLite асинхронно."""
+async def startup_event() -> None:
+    """Initializes the database and migrates data from TSV to SQLite.
+
+    Checks for existence of source files, creates the complaints table schema,
+    and performs an initial data migration if the table is empty.
+    """
     if not Path(COMPLAINTS_TSV).exists() or not Path(DB_PATH).exists():
-        print("Внимание: База данных или TSV файл не найдены. Сначала запусти db_creator.py!")
         return
 
     async with aiosqlite.connect(DB_PATH) as conn:
@@ -39,26 +42,50 @@ async def startup_event():
         cursor = await conn.execute("SELECT COUNT(*) FROM complaints")
         row = await cursor.fetchone()
 
-        if row[0] == 0:
+        if row and row[0] == 0:
             df = pd.read_csv(COMPLAINTS_TSV, sep='\t')
             for _, row_df in df.iterrows():
-                user_id = row_df.get('userId') if pd.notnull(row_df.get('userId')) else row_df.get('uerId')
+                user_id = (
+                    row_df.get('userId')
+                    if pd.notnull(row_df.get('userId'))
+                    else row_df.get('uerId')
+                )
                 await conn.execute(
-                    "INSERT INTO complaints (victim_bank_id, text, event_date, status) VALUES (?, ?, ?, ?)",
+                    """INSERT INTO complaints 
+                       (victim_bank_id, text, event_date, status) 
+                       VALUES (?, ?, ?, ?)""",
                     (user_id, row_df.get('text'), row_df.get('event_date'), 'New')
                 )
             await conn.commit()
-            print("Жалобы успешно загружены в базу SQLite!")
 
 
 @app.get("/", include_in_schema=False)
-def root():
+def root() -> RedirectResponse:
+    """Redirects the root URL to the API documentation.
+
+    Returns:
+        A RedirectResponse object pointing to the /docs endpoint.
+    """
     return RedirectResponse(url="/docs")
 
 
-def verify_token(authorization: Optional[str] = Header(None)):
+def verify_token(authorization: Optional[str] = Header(None)) -> str:
+    """Verifies the Bearer token in the Authorization header.
+
+    Args:
+        authorization: The raw Authorization header string.
+
+    Returns:
+        The ID of the verified operator.
+
+    Raises:
+        HTTPException: If the token is missing, malformed, or invalid.
+    """
     if authorization is None or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Отсутствует или неверный токен (ожидается 'Bearer <token>')")
+        raise HTTPException(
+            status_code=401,
+            detail="Отсутствует или неверный токен (ожидается 'Bearer <token>')"
+        )
 
     token = authorization.split(" ")[1]
     if token != "secret-token-123":
@@ -67,17 +94,34 @@ def verify_token(authorization: Optional[str] = Header(None)):
     return "operator_01"
 
 
-def audit_log(user_id: str, action: str):
+def audit_log(user_id: str, action: str) -> None:
+    """Records security-relevant events to the system log.
+
+    Args:
+        user_id: The unique identifier of the user performing the action.
+        action: A descriptive string of the operation performed.
+    """
     print(f"[AUDIT LOG] User: {user_id} | Action: {action}")
 
 
 @app.get("/complaints", dependencies=[Depends(verify_token)])
 async def get_complaints(
-        start_date: Optional[str] = Query(None, description="Дата от (YYYY-MM-DD)"),
-        end_date: Optional[str] = Query(None, description="Дата до (YYYY-MM-DD)"),
-        skip: int = Query(0, ge=0),
-        limit: int = Query(20, le=100)
-):
+    start_date: Optional[str] = Query(None, description="Дата от (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="Дата до (YYYY-MM-DD)"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, le=100)
+) -> List[Dict[str, Any]]:
+    """Retrieves a list of complaints with filtering and pagination.
+
+    Args:
+        start_date: Start date for the event_date filter.
+        end_date: End date for the event_date filter.
+        skip: Number of records to skip.
+        limit: Maximum number of records to return.
+
+    Returns:
+        A list of dictionaries representing complaint records.
+    """
     async with EcosystemDB(DB_PATH) as db:
         query = "SELECT * FROM complaints WHERE 1=1"
         params = []
@@ -87,7 +131,7 @@ async def get_complaints(
             params.append(start_date)
         if end_date:
             query += " AND event_date <= ?"
-            params.append(end_date + " 23:59:59")
+            params.append(f"{end_date} 23:59:59")
 
         query += " LIMIT ? OFFSET ?"
         params.extend([limit, skip])
@@ -100,7 +144,18 @@ async def get_complaints(
 
 
 @app.get("/complaints/{complaint_id}", dependencies=[Depends(verify_token)])
-async def get_complaint(complaint_id: int):
+async def get_complaint(complaint_id: int) -> Dict[str, Any]:
+    """Retrieves the details of a specific complaint.
+
+    Args:
+        complaint_id: The unique integer ID of the complaint.
+
+    Returns:
+        A dictionary containing the complaint data.
+
+    Raises:
+        HTTPException: If no complaint is found with the given ID.
+    """
     async with EcosystemDB(DB_PATH) as db:
         cursor = await db.conn.cursor()
         await cursor.execute("SELECT * FROM complaints WHERE id = ?", (complaint_id,))
@@ -111,7 +166,26 @@ async def get_complaint(complaint_id: int):
 
 
 @app.post("/investigate/{complaint_id}")
-async def investigate_complaint(complaint_id: int, user_id: str = Depends(verify_token)):
+async def investigate_complaint(
+    complaint_id: int,
+    user_id: str = Depends(verify_token)
+) -> Dict[str, Any]:
+    """Processes a complaint to identify potential fraud.
+
+    Extracts the amount from the complaint text, cross-references it with
+    transactional data, and updates the complaint status if fraud is found.
+
+    Args:
+        complaint_id: The ID of the complaint to process.
+        user_id: The ID of the operator performing the investigation.
+
+    Returns:
+        A dictionary containing the success status and discovered fraud details.
+
+    Raises:
+        HTTPException: If the complaint is not found, the amount cannot be
+            extracted, or no matching transaction is located.
+    """
     extractor = AmountExtractor()
 
     async with EcosystemDB(DB_PATH) as db:
@@ -127,16 +201,25 @@ async def investigate_complaint(complaint_id: int, user_id: str = Depends(verify
 
         amount = extractor.extract(text)
         if not amount:
-            raise HTTPException(status_code=400, detail="Не удалось извлечь сумму из текста жалобы")
+            raise HTTPException(
+                status_code=400,
+                detail="Не удалось извлечь сумму из текста жалобы"
+            )
 
         trans = await db.find_transaction_info(v_bank_id, amount)
         if not trans:
-            raise HTTPException(status_code=404, detail="Подозрительная транзакция не найдена")
+            raise HTTPException(
+                status_code=404,
+                detail="Подозрительная транзакция не найдена"
+            )
 
-        await cursor.execute("UPDATE complaints SET status = 'Processed' WHERE id = ?", (complaint_id,))
+        await cursor.execute(
+            "UPDATE complaints SET status = 'Processed' WHERE id = ?",
+            (complaint_id,)
+        )
         await db.conn.commit()
 
-        audit_log(user_id, action=f"Investigated complaint #{complaint_id}, Fraud found: {trans['fraud_bank_id']}")
+        audit_log(user_id, f"Investigated complaint #{complaint_id}")
 
         return {
             "status": "Success",
@@ -152,22 +235,41 @@ async def investigate_complaint(complaint_id: int, user_id: str = Depends(verify
 
 
 @app.get("/cases/{fraud_id}/calls", dependencies=[Depends(verify_token)])
-async def get_fraud_calls(fraud_id: str, victim_id: str):
+async def get_fraud_calls(
+    fraud_id: str,
+    victim_id: str
+) -> List[Dict[str, Any]]:
+    """Retrieves call logs between a suspect and a victim.
+
+    Args:
+        fraud_id: The bank user ID of the suspect.
+        victim_id: The bank user ID of the victim.
+
+    Returns:
+        A list of call interaction records.
+
+    Raises:
+        HTTPException: If phone numbers for either party cannot be resolved.
+    """
     async with EcosystemDB(DB_PATH) as db:
         cursor = await db.conn.cursor()
 
-        await cursor.execute("SELECT phone FROM bank_clients WHERE userId = ?", (fraud_id,))
+        await cursor.execute(
+            "SELECT phone FROM bank_clients WHERE userId = ?", (fraud_id,)
+        )
         f_row = await cursor.fetchone()
-        await cursor.execute("SELECT phone FROM bank_clients WHERE userId = ?", (victim_id,))
+        await cursor.execute(
+            "SELECT phone FROM bank_clients WHERE userId = ?", (victim_id,)
+        )
         v_row = await cursor.fetchone()
 
         if not f_row or not v_row:
-            raise HTTPException(status_code=404, detail="Не удалось найти номера телефонов по ID")
+            raise HTTPException(
+                status_code=404,
+                detail="Не удалось найти номера телефонов по ID"
+            )
 
-        fraud_phone = str(f_row['phone'])
-        victim_phone = str(v_row['phone'])
-
-        calls = await db.get_calls(victim_phone, fraud_phone)
+        calls = await db.get_calls(str(v_row['phone']), str(f_row['phone']))
 
         return [
             {
@@ -181,19 +283,29 @@ async def get_fraud_calls(fraud_id: str, victim_id: str):
 
 
 @app.get("/cases/{fraud_id}/delivery", dependencies=[Depends(verify_token)])
-async def get_fraud_delivery(fraud_id: str):
+async def get_fraud_delivery(fraud_id: str) -> Dict[str, Any]:
+    """Retrieves marketplace delivery history for a suspect.
+
+    Args:
+        fraud_id: The unique identifier of the suspect.
+
+    Returns:
+        A dictionary containing delivery records or an empty message.
+    """
     async with EcosystemDB(DB_PATH) as db:
         market_data = await db.get_market_activity(fraud_id)
 
         if not market_data:
             return {"message": "Активность на маркетплейсе не найдена", "data": []}
 
-        return [
-            {
-                "address": m["address"],
-                "contact_name": m["contact_fio"],
-                "contact_phone": m["contact_phone"],
-                "date": m["event_date"]
-            }
-            for m in market_data
-        ]
+        return {
+            "data": [
+                {
+                    "address": m["address"],
+                    "contact_name": m["contact_fio"],
+                    "contact_phone": m["contact_phone"],
+                    "date": m["event_date"]
+                }
+                for m in market_data
+            ]
+        }
