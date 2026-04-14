@@ -1,51 +1,82 @@
 /* ====================================================== */
-/* 1. ШАПКА (ЛАЙМ + ЧЕРНЫЙ ТЕКСТ)    */
+/* 1. ВЕРХНЯЯ ЧАСТЬ (ШАПКА + ТАБЫ) — ЛАЙМ + ЧЕРНЫЙ ТЕКСТ  */
 /* ====================================================== */
-.md-header {
+
+/* Перекрашиваем переменную основного цвета во всей системе */
+:root, [data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #C3FC6D !important;
+  --md-primary-fg-color--light: #d6ff9e !important;
+  --md-primary-fg-color--dark: #a8e05a !important;
+}
+
+/* Сама шапка и полоса табов */
+.md-header,
+.md-tabs {
   background-color: #C3FC6D !important;
 }
-.md-header__title, .md-header__button, .md-tabs__link,
-.md-source__repository, .md-source__icon, .md-search__icon,
-.md-search__input::placeholder {
+
+/* Весь текст и иконки в этой лаймовой зоне — строго ЧЕРНЫЙ */
+.md-header__title,
+.md-header__button,
+.md-tabs__link,
+.md-source__repository,
+.md-source__icon,
+.md-search__icon,
+.md-search__input::placeholder,
+.md-nav__item .md-nav__link {
   color: #000000 !important;
 }
+
+/* Настройка текста в табах (неактивные / активные) */
+.md-tabs__link {
+  opacity: 0.7 !important; /* Неактивные табы чуть тусклее черного */
+}
+
 .md-tabs__link--active {
-  color: #000000 !important;
   opacity: 1 !important;
-  font-weight: bold !important;
+  font-weight: 800 !important; /* Жирнее, чтобы выделялось */
+}
+
+/* Черная полоска под активным табом */
+.md-tabs__link--active::after {
+  background-color: #000000 !important;
+}
+
+/* Поиск: фон и текст внутри лупы */
+.md-search__form {
+  background-color: rgba(0, 0, 0, 0.07) !important;
+}
+.md-search__input {
+  color: #000000 !important;
 }
 
 /* ====================================================== */
-/* 2. ВЕСЬ ОСТАЛЬНОЙ КОНТЕНТ         */
+/* 2. КОНТЕНТ СТРАНИЦЫ — ЧИСТО БЕЛЫЙ ТЕКСТ                */
 /* ====================================================== */
 
-/* Перебиваем базовые цвета текста для темной темы */
+/* Перебиваем базовые цвета текста для всей страницы */
 [data-md-color-scheme="slate"], :root {
-  --md-default-fg-color: #ffffff !important;        /* Основной текст */
-  --md-default-fg-color--light: #ffffff !important; /* Вторичный текст */
+  --md-default-fg-color: #ffffff !important;
+  --md-default-fg-color--light: #ffffff !important;
   --md-default-fg-color--lighter: #ffffff !important;
   --md-default-fg-color--lightest: #ffffff !important;
 
-  /* Убираем синий акцент у активных элементов */
+  /* Цвет ссылок и акцентов на странице (лайм) */
   --md-accent-fg-color: #C3FC6D !important;
 }
 
-/* Заголовки на странице */
-.md-typeset h1,
-.md-typeset h2,
-.md-typeset h3,
-.md-typeset h4 {
+/* Заголовки (H1, H2, H3...) */
+.md-typeset h1, .md-typeset h2, .md-typeset h3, .md-typeset h4 {
   color: #ffffff !important;
 }
 
-/* Навигация слева (Меню) */
+/* Левое меню (Навигация) */
 .md-nav__link {
-  color: #ffffff !important; /* Все ссылки белые */
+  color: #ffffff !important;
 }
 
-/* Тот самый СИНИЙ активный пункт (например, Главная или Тестирование) */
+/* СИНИЙ пункт в левом меню — теперь будет БЕЛЫМ */
 .md-nav__link--active,
-.md-nav--primary .md-nav__link--active,
 .md-nav__link--current {
   color: #ffffff !important;
   font-weight: bold !important;
@@ -54,43 +85,19 @@
 /* Содержание справа */
 .md-sidebar--secondary .md-nav__link {
   color: #ffffff !important;
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 .md-sidebar--secondary .md-nav__link--active {
-  color: #ffffff !important;
   opacity: 1;
 }
 
-/* Ссылки внутри текста (пусть будут лаймовыми, чтобы выделялись) */
-.md-typeset a {
-  color: #C3FC6D !important;
-}
-
-/* Текст внутри блоков кода и авто-документации */
+/* Текст в коде и автодоке */
 .doc-contents, .doc-heading, .md-typeset code {
   color: #ffffff !important;
 }
 
-/* Перекрашиваем полосу табов (под шапкой) в лайм */
-.md-tabs {
-  background-color: #C3FC6D !important;
-}
-
-/* Делаем текст в табах черным, как в шапке */
-.md-tabs__link {
-  color: #000000 !important;
-  opacity: 0.7; /* Неактивные чуть тусклее */
-}
-
-/* Активный таб - чисто черный и жирный */
-.md-tabs__link--active {
-  color: #000000 !important;
-  opacity: 1 !important;
-  font-weight: bold !important;
-}
-
-/* Цвет индикатора (полоска под активным табом) — делаем черным или чуть темнее лайма */
-.md-tabs__link--active::after {
-  background-color: #000000 !important;
+/* Подсветка ссылок в тексте */
+.md-typeset a {
+  color: #C3FC6D !important;
 }
