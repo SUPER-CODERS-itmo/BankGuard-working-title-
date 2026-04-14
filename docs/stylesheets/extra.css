@@ -1,103 +1,95 @@
 /* ====================================================== */
 /* 1. ВЕРХНЯЯ ЧАСТЬ (ШАПКА + ТАБЫ) — ЛАЙМ + ЧЕРНЫЙ ТЕКСТ  */
 /* ====================================================== */
+/* Эта часть одинаковая для обеих тем */
 
-/* Перекрашиваем переменную основного цвета во всей системе */
-:root, [data-md-color-scheme="slate"] {
+:root, [data-md-color-scheme="slate"], [data-md-color-scheme="default"] {
   --md-primary-fg-color: #C3FC6D !important;
   --md-primary-fg-color--light: #d6ff9e !important;
   --md-primary-fg-color--dark: #a8e05a !important;
 }
 
-/* Сама шапка и полоса табов */
-.md-header,
-.md-tabs {
+.md-header, .md-tabs {
   background-color: #C3FC6D !important;
 }
 
-/* Весь текст и иконки в этой лаймовой зоне — строго ЧЕРНЫЙ */
-.md-header__title,
-.md-header__button,
-.md-tabs__link,
-.md-source__repository,
-.md-source__icon,
-.md-search__icon,
+.md-header__title, .md-header__button, .md-tabs__link,
+.md-source__repository, .md-source__icon, .md-search__icon,
 .md-search__input::placeholder {
-  /* Я убрал отсюда .md-nav__item .md-nav__link, чтобы меню не было черным */
   color: #000000 !important;
 }
 
-/* Настройка текста в табах (неактивные / активные) */
-.md-tabs__link {
-  opacity: 0.7 !important; /* Неактивные табы чуть тусклее черного */
-}
-
 .md-tabs__link--active {
+  color: #000000 !important;
   opacity: 1 !important;
-  font-weight: 800 !important; /* Жирнее, чтобы выделялось */
+  font-weight: 800 !important;
 }
 
-/* Черная полоска под активным табом */
 .md-tabs__link--active::after {
   background-color: #000000 !important;
 }
 
-/* Поиск: фон и текст внутри лупы */
 .md-search__form {
   background-color: rgba(0, 0, 0, 0.07) !important;
 }
+
 .md-search__input {
   color: #000000 !important;
 }
 
 /* ====================================================== */
-/* 2. КОНТЕНТ СТРАНИЦЫ — ЧИСТО БЕЛЫЙ ТЕКСТ                */
+/* 2. КОНТЕНТ СТРАНИЦЫ — РАЗДЕЛЯЕМ ТЕМЫ                   */
 /* ====================================================== */
 
-/* Перебиваем базовые цвета текста для всей страницы */
-[data-md-color-scheme="slate"], :root {
+/* --- ТЕМНАЯ ТЕМА (SLATE) --- */
+[data-md-color-scheme="slate"] {
   --md-default-fg-color: #ffffff !important;
   --md-default-fg-color--light: #ffffff !important;
   --md-default-fg-color--lighter: #ffffff !important;
   --md-default-fg-color--lightest: #ffffff !important;
-
-  /* Цвет ссылок и акцентов на странице (лайм) */
   --md-accent-fg-color: #C3FC6D !important;
 }
 
-/* Заголовки (H1, H2, H3...) */
-.md-typeset h1, .md-typeset h2, .md-typeset h3, .md-typeset h4 {
+[data-md-color-scheme="slate"] .md-typeset h1,
+[data-md-color-scheme="slate"] .md-typeset h2,
+[data-md-color-scheme="slate"] .md-typeset h3,
+[data-md-color-scheme="slate"] .md-typeset h4,
+[data-md-color-scheme="slate"] .md-nav__link,
+[data-md-color-scheme="slate"] .doc-contents,
+[data-md-color-scheme="slate"] .doc-heading,
+[data-md-color-scheme="slate"] .md-typeset code {
   color: #ffffff !important;
 }
 
-/* Левое меню (Навигация) — ТЕПЕРЬ БУДЕТ БЕЛЫМ */
-.md-nav__link {
-  color: #ffffff !important;
+/* --- СВЕТЛАЯ ТЕМА (DEFAULT) --- */
+[data-md-color-scheme="default"] {
+  --md-default-fg-color: #222222 !important; /* Темный текст для светлой темы */
+  --md-default-fg-color--light: #444444 !important;
+  --md-accent-fg-color: #2e7d32 !important; /* Акцент чуть темнее для читаемости */
 }
 
-/* Активный пункт в левом меню — БЕЛЫЙ */
-.md-nav__link--active,
-.md-nav__link--current {
+[data-md-color-scheme="default"] .md-typeset h1,
+[data-md-color-scheme="default"] .md-typeset h2,
+[data-md-color-scheme="default"] .md-typeset h3,
+[data-md-color-scheme="default"] .md-nav__link,
+[data-md-color-scheme="default"] .doc-contents,
+[data-md-color-scheme="default"] .doc-heading {
+  color: #222222 !important; /* Черный текст */
+}
+
+/* Общие настройки для активных пунктов (Белый в темной, Черный в светлой) */
+[data-md-color-scheme="slate"] .md-nav__link--active,
+[data-md-color-scheme="slate"] .md-nav__link--current {
   color: #ffffff !important;
   font-weight: bold !important;
 }
 
-/* Содержание справа */
-.md-sidebar--secondary .md-nav__link {
-  color: #ffffff !important;
-  opacity: 0.7;
+[data-md-color-scheme="default"] .md-nav__link--active,
+[data-md-color-scheme="default"] .md-nav__link--current {
+  color: #000000 !important;
+  font-weight: bold !important;
 }
 
-.md-sidebar--secondary .md-nav__link--active {
-  opacity: 1;
-}
-
-/* Текст в коде и автодоке */
-.doc-contents, .doc-heading, .md-typeset code {
-  color: #ffffff !important;
-}
-
-/* Подсветка ссылок в тексте */
-.md-typeset a {
-  color: #C3FC6D !important;
-}
+/* Ссылки (Лайм на темном, Зеленый на светлом) */
+[data-md-color-scheme="slate"] .md-typeset a { color: #C3FC6D !important; }
+[data-md-color-scheme="default"] .md-typeset a { color: #2e7d32 !important; }
