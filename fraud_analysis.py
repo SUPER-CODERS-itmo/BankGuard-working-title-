@@ -1,7 +1,8 @@
-import sqlite3
+import aiosqlite
 import pandas as pd
 import re
 import logging
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Union
 
@@ -62,20 +63,20 @@ class EcosystemDB:
         Само подключение происходит через менеджер контекста (with).
         """
         self.db_path = db_path
-        self.conn: Optional[sqlite3.Connection] = None
+        self.conn: Optional[aiosqlite.Connection] = None
 
-    def __enter__(self):
-        """Открывает соединение при входе в блок with."""
-        self.conn = sqlite3.connect(self.db_path)
-        self.conn.row_factory = sqlite3.Row
+    async def __aenter__(self):
+        """Открывает соединение при входе в блок async with."""
+        self.conn = await aiosqlite.connect(self.db_path)
+        self.conn.row_factory = aiosqlite.Row
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Гарантированно закрывает соединение при выходе из блока with."""
         if self.conn:
-            self.conn.close()
+            await self.conn.close()
 
-    def find_transaction_info(self, victim_id: int, amount: int) -> Optional[sqlite3.Row]:
+    async def find_transaction_info(self, victim_id: str, amount: int) -> Optional[aiosqlite.Row]:
         """
         Ищет транзакцию в банке на основе ID жертвы и суммы.
 
@@ -102,11 +103,11 @@ class EcosystemDB:
             ORDER BY t.event_date DESC
             LIMIT 1
         """
-        cursor = self.conn.cursor()
-        cursor.execute(query, (victim_id, amount))
-        return cursor.fetchone()
+        cursor = await self.conn.cursor()
+        await cursor.execute(query, (victim_id, amount))
+        return await cursor.fetchone()
 
-    def get_calls(self, victim_phone: str, fraud_phone: str) -> List[Dict[str, Any]]:
+    async def get_calls(self, victim_phone: str, fraud_phone: str) -> List[Dict[str, Any]]:
         """Получает историю звонков между жертвой и подозреваемым."""
         query = """
             SELECT 
@@ -115,11 +116,12 @@ class EcosystemDB:
             WHERE (from_call = ? AND to_call = ?)
                OR (from_call = ? AND to_call = ?)
         """
-        cursor = self.conn.cursor()
-        cursor.execute(query, (victim_phone, fraud_phone, fraud_phone, victim_phone))
-        return [dict(row) for row in cursor.fetchall()]
+        cursor = await self.conn.cursor()
+        await cursor.execute(query, (victim_phone, fraud_phone, fraud_phone, victim_phone))
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
 
-    def get_market_activity(self, fraud_bank_id: int) -> List[Dict[str, Any]]:
+    async def get_market_activity(self, fraud_bank_id: int) -> List[Dict[str, Any]]:
         """Находит активность мошенника на маркетплейсе через маппинг ID."""
         query = """
             SELECT 
@@ -128,9 +130,10 @@ class EcosystemDB:
             JOIN market_place_delivery md ON md.user_id = em.marketplace_id
             WHERE em.bank_id = ?
         """
-        cursor = self.conn.cursor()
-        cursor.execute(query, (fraud_bank_id,))
-        return [dict(row) for row in cursor.fetchall()]
+        cursor = await self.conn.cursor()
+        await cursor.execute(query, (fraud_bank_id,))
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
 
 
 class FraudInvestigator:
@@ -144,7 +147,7 @@ class FraudInvestigator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.cases = []
 
-    def run(self):
+    async def run(self):
         """Запускает полный цикл анализа данных."""
         logger.info("Загрузка данных жалоб...")
         try:
@@ -156,9 +159,8 @@ class FraudInvestigator:
         records = df.to_dict('records')
         logger.info(f"Обработка {len(records)} записей...")
 
-        with EcosystemDB(self.db_path) as db:
+        async with EcosystemDB(self.db_path) as db:
             for row in records:
-                # Обработка опечатки в названии колонки
                 v_id = row.get('userId') if pd.notnull(row.get('userId')) else row.get('uerId')
                 text = row.get('text')
 
@@ -166,16 +168,16 @@ class FraudInvestigator:
                 if not amount:
                     continue
 
-                trans = db.find_transaction_info(v_id, amount)
+                trans = await db.find_transaction_info(v_id, amount)
                 if trans:
-                    case = self._process_fraud_case(db, v_id, text, row.get('event_date'), amount, trans)
+                    case = await self._process_fraud_case(db, v_id, text, row.get('event_date'), amount, trans)
                     self.cases.append(case)
 
         self._save_results()
         logger.info("Расследование завершено.")
 
-    def _process_fraud_case(self, db: EcosystemDB, v_id: int, text: str,
-                            date: str, amount: int, trans: sqlite3.Row) -> Dict[str, Any]:
+    async def _process_fraud_case(self, db: EcosystemDB, v_id: str, text: str,
+                                  date: str, amount: int, trans: aiosqlite.Row) -> Dict[str, Any]:
         """
         Обогащает данные кейса информацией из других систем (мобильная связь, маркетплейс).
         """
@@ -193,11 +195,11 @@ class FraudInvestigator:
             'fraud_bank_owner_phone': trans['fraud_phone']
         }
 
-        calls = db.get_calls(case['victim_phone'], case['fraud_bank_owner_phone'])
+        calls = await db.get_calls(str(case['victim_phone']), str(case['fraud_bank_owner_phone']))
         case['calls_data'] = calls
         case['has_calls'] = 1 if calls else 0
 
-        market = db.get_market_activity(case['fraud_bank_owner_id'])
+        market = await db.get_market_activity(case['fraud_bank_owner_id'])
         case['market_data'] = market
         case['has_market_activity'] = 1 if market else 0
 
@@ -221,4 +223,4 @@ if __name__ == "__main__":
         complaints_path='data/bank_complaints.tsv',
         output_dir='data/'
     )
-    investigator.run()
+    asyncio.run(investigator.run())
