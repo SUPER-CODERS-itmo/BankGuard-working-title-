@@ -76,6 +76,15 @@ class DataPopulator:
             CREATE TABLE mobile_build (event_date TEXT, from_call INTEGER, to_call INTEGER, duration_sec INTEGER);
             CREATE TABLE mobile_clients (client_id TEXT, phone INTEGER, fio TEXT, address TEXT);
             CREATE TABLE ecosystem_mapping (unique_id TEXT, mobile_id TEXT, bank_id TEXT, marketplace_id TEXT);
+            
+            CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
+            has_telegram INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
 
     def generate_data(self, n_users: int = 100, n_frauds: int = 10):
@@ -185,9 +194,44 @@ class DataPopulator:
         """Закрывает соединение с базой данных."""
         self.conn.close()
 
+def create_demo_admin(db_path: str):
+    """
+    Создаёт демо-администратора, если таблица users пуста.
+
+    Args: db_path: Путь к файлу базы данных SQLite
+    """
+    import hashlib
+
+    SALT = "bankguard_salt_2024"
+
+    def simple_hash(pwd: str) -> str:
+        """Простое хеширование пароля для демо-целей"""
+        return hashlib.sha256((pwd + SALT).encode()).hexdigest()
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Проверяем, есть ли уже пользователи
+    cursor.execute('SELECT COUNT(*) FROM users')
+    count = cursor.fetchone()[0]
+
+    if count == 0:
+        password_hash = simple_hash("admin123")
+        cursor.execute('''
+            INSERT INTO users (username, password_hash, is_admin, has_telegram)
+            VALUES (?, ?, ?, ?)
+        ''', ("admin", password_hash, 1, 0))
+        conn.commit()
+        print(" Создан демо-администратор: admin / admin123")
+        print(" Измените пароль после первого входа!")
+    else:
+        print(f" Таблица users не пуста ({count} записей), демо-администратор не создан")
+
+    conn.close()
 
 if __name__ == "__main__":
     populator = DataPopulator(DB_PATH)
     populator.setup_schema()
     populator.generate_data(n_users=1500, n_frauds=150)
     populator.close()
+    create_demo_admin(DB_PATH)
