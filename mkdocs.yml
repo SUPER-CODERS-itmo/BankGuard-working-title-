@@ -59,7 +59,7 @@ plugins:
 
 nav:
   - Главная: index.md
-  - Бэкенд: backend.md
+  - Backend: backend.md
   - Тестирование: tests.md
   - Telegram Bot: tg.md
 
