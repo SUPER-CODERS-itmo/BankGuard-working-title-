@@ -4,6 +4,8 @@ repo_url: https://github.com/SUPER-CODERS-itmo/BEN
 repo_name: SUPER-CODERS-itmo/BEN
 edit_uri: edit/main/docs/
 
+extra_css:
+  - stylesheets/extra.css
 
 theme:
   name: material
@@ -35,8 +37,7 @@ theme:
     - search.share
     - navigation.expand
     - navigation.path
-extra_css:
-  - stylesheets/extra.css
+
 plugins:
   - search
   - mkdocstrings:
