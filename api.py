@@ -1,310 +1,234 @@
+"""Модуль API для системы анализа мошенничества (BEN API)."""
+
+import json
+import logging
+import os
+from typing import Any, Dict, List, Optional
+
 import aiosqlite
-import pandas as pd
-from pathlib import Path
-from typing import List, Optional, Dict, Any
-
-from fastapi import FastAPI, Depends, HTTPException, Query, Security
+from fastapi import Depends, FastAPI, HTTPException, Query, Security
 from fastapi.responses import RedirectResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+import pandas as pd
 
-from fraud_analysis import EcosystemDB, AmountExtractor
+from fraud_analysis import FraudInvestigator
 
-app = FastAPI(
-    title="BEN API",
-    description="BEN",
-    version="1.1.0"
-)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="BEN API", version="1.2.0")
 security = HTTPBearer()
 
 DB_PATH = 'data/ecosystem_data.db'
 COMPLAINTS_TSV = 'data/bank_complaints.tsv'
 
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    """Инициализирует базу данных и переносит данные из TSV в SQLite.
+def verify_token(
+    credentials: HTTPAuthorizationCredentials = Security(security)
+) -> str:
+    """Проверяет токен авторизации.
 
-    Проверяет наличие исходных файлов, создает схему таблицы жалоб
-    и выполняет первичную миграцию данных, если таблица пуста.
+    Args:
+        credentials: Учетные данные из заголовка Authorization.
+
+    Returns:
+        Идентификатор оператора при успешной проверке.
+
+    Raises:
+        HTTPException: Если токен невалиден.
     """
-    if not Path(COMPLAINTS_TSV).exists() or not Path(DB_PATH).exists():
-        return
-
-    async with aiosqlite.connect(DB_PATH) as conn:
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS complaints (
-                id TEXT,
-                victim_bank_id TEXT,
-                text TEXT,
-                event_date TEXT,
-                status TEXT DEFAULT 'New'
-            )
-        """)
-
-        cursor = await conn.execute("SELECT COUNT(*) FROM complaints")
-        row = await cursor.fetchone()
-
-        if row and row[0] == 0:
-            df = pd.read_csv(COMPLAINTS_TSV, sep='\t')
-            for _, row_df in df.iterrows():
-                user_id = (
-                    row_df.get('userId')
-                    if pd.notnull(row_df.get('userId'))
-                    else row_df.get('uerId')
-                )
-                await conn.execute(
-                    """INSERT INTO complaints 
-                       (victim_bank_id, text, event_date, status) 
-                       VALUES (?, ?, ?, ?)""",
-                    (user_id, row_df.get('text'), row_df.get('event_date'), 'New')
-                )
-            await conn.commit()
-
-
-@app.get("/", include_in_schema=False)
-def root() -> RedirectResponse:
-    """Перенаправляет корневой URL на документацию API.
-
-    Возвращает:
-        Объект RedirectResponse, указывающий на эндпоинт /docs.
-    """
-    return RedirectResponse(url="/docs")
-
-
-def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:
-    """Проверяет Bearer-токен и активирует кнопку Authorize в Swagger.
-
-    Аргументы:
-        credentials: Данные авторизации, автоматически извлеченные FastAPI.
-
-    Возвращает:
-        ID проверенного оператора.
-
-    Исключения:
-        HTTPException: Если токен отсутствует, неверно сформирован или невалиден.
-    """
-    token = credentials.credentials
-    if token != "secret-token-123":
-        raise HTTPException(
-            status_code=403,
-            detail="Неверный или просроченный токен доступа"
-        )
-
+    if credentials.credentials != "secret-token-123":
+        raise HTTPException(status_code=403, detail="Invalid token")
     return "operator_01"
 
 
 def audit_log(user_id: str, action: str) -> None:
-    """Записывает события безопасности в системный лог.
+    """Записывает действие пользователя в аудит-лог.
 
-    Аргументы:
-        user_id: Уникальный идентификатор пользователя, совершающего действие.
-        action: Описание выполненной операции.
+    Args:
+        user_id: Идентификатор пользователя.
+        action: Описание совершенного действия.
     """
-    print(f"[AUDIT LOG] User: {user_id} | Action: {action}")
+    logger.info("[AUDIT] %s | Action: %s", user_id, action)
+
+
+def read_complaints_safe() -> pd.DataFrame:
+    """Безопасно читает данные из TSV файла с жалобами.
+
+    Returns:
+        DataFrame с данными жалоб.
+
+    Raises:
+        HTTPException: Если файл не найден.
+    """
+    if not os.path.exists(COMPLAINTS_TSV):
+        raise HTTPException(status_code=500, detail="TSV file not found")
+
+    return pd.read_csv(COMPLAINTS_TSV, sep='\t')
+
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    """Перенаправляет на документацию API."""
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/complaints", dependencies=[Depends(verify_token)])
 async def get_complaints(
-        start_date: Optional[str] = Query(None, description="Дата от (YYYY-MM-DD)"),
-        end_date: Optional[str] = Query(None, description="Дата до (YYYY-MM-DD)"),
-        skip: int = Query(0, ge=0),
-        limit: int = Query(20, le=100)
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    skip: int = 0,
+    limit: int = 20
 ) -> List[Dict[str, Any]]:
-    """Возвращает список жалоб с возможностью фильтрации и пагинации.
+    """Возвращает список жалоб с фильтрацией по дате.
 
-    Аргументы:
-        start_date: Дата начала для фильтрации по event_date.
-        end_date: Дата окончания для фильтрации по event_date.
+    Args:
+        start_date: Начальная дата в формате YYYY-MM-DD.
+        end_date: Конечная дата в формате YYYY-MM-DD.
         skip: Количество пропускаемых записей.
-        limit: Максимальное количество возвращаемых записей.
+        limit: Максимальное количество записей.
 
-    Возвращает:
-        Список словарей, представляющих записи жалоб.
+    Returns:
+        Список словарей с данными жалоб.
     """
-    async with EcosystemDB(DB_PATH) as db:
-        query = "SELECT * FROM complaints WHERE 1=1"
-        params = []
+    df = read_complaints_safe()
 
-        if start_date:
-            query += " AND event_date >= ?"
-            params.append(start_date)
-        if end_date:
-            query += " AND event_date <= ?"
-            params.append(f"{end_date} 23:59:59")
+    if start_date:
+        df = df[df['event_date'] >= start_date]
+    if end_date:
+        df = df[df['event_date'] <= f"{end_date} 23:59:59"]
 
-        query += " LIMIT ? OFFSET ?"
-        params.extend([limit, skip])
-
-        cursor = await db.conn.cursor()
-        await cursor.execute(query, params)
-        rows = await cursor.fetchall()
-
-        return [dict(row) for row in rows]
+    return df.iloc[skip: skip + limit].to_dict(orient='records')
 
 
 @app.get("/complaints/{complaint_id}", dependencies=[Depends(verify_token)])
-async def get_complaint(complaint_id: str) -> Dict[str, Any]:
-    """Возвращает детали конкретной жалобы.
+async def get_complaint_text(complaint_id: str) -> Dict[str, str]:
+    """Получает текст конкретной жалобы по ID.
 
-    Аргументы:
-        complaint_id: Уникальный целочисленный ID жалобы.
+    Args:
+        complaint_id: Идентификатор жалобы (userId в TSV).
 
-    Возвращает:
-        Словарь с данными жалобы.
+    Returns:
+        Словарь с ID и текстом жалобы.
 
-    Исключения:
-        HTTPException: Если жалоба с таким ID не найдена.
+    Raises:
+        HTTPException: Если жалоба не найдена.
     """
-    async with EcosystemDB(DB_PATH) as db:
-        cursor = await db.conn.cursor()
-        await cursor.execute("SELECT * FROM complaints WHERE id = ?", (complaint_id,))
-        row = await cursor.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Жалоба не найдена")
-        return dict(row)
+    df = read_complaints_safe()
+    complaint = df[df['userId'].astype(str) == str(complaint_id)]
+
+    if complaint.empty:
+        raise HTTPException(status_code=404, detail="Complaint not found")
+
+    return {"id": complaint_id, "text": complaint.iloc[0]['text']}
 
 
 @app.post("/investigate/{complaint_id}")
-async def investigate_complaint(
-        complaint_id: str,
-        user_id: str = Depends(verify_token)
+async def investigate(
+    complaint_id: str,
+    user_id: str = Depends(verify_token)
 ) -> Dict[str, Any]:
-    """Обрабатывает жалобу для выявления потенциального мошенничества.
+    """Запускает процесс расследования по жалобе.
 
-    Извлекает сумму из текста жалобы, сопоставляет её с данными транзакций
-    и обновляет статус жалобы в случае обнаружения мошенничества.
+    Args:
+        complaint_id: Идентификатор жалобы.
+        user_id: ID оператора (из токена).
 
-    Аргументы:
-        complaint_id: ID жалобы для обработки.
-        user_id: ID оператора, проводящего расследование.
+    Returns:
+        Результаты расследования в виде словаря.
 
-    Возвращает:
-        Словарь, содержащий статус успеха и детали обнаруженного мошенничества.
-
-    Исключения:
-        HTTPException: Если жалоба не найдена, не удалось извлечь сумму
-            или не найдена подходящая транзакция.
+    Raises:
+        HTTPException: Если в процессе расследования возникла ошибка.
     """
-    extractor = AmountExtractor()
+    investigator = FraudInvestigator(DB_PATH, COMPLAINTS_TSV)
+    res_json = await investigator.investigate_single_case(complaint_id)
+    result = json.loads(res_json)
 
-    async with EcosystemDB(DB_PATH) as db:
-        cursor = await db.conn.cursor()
-        await cursor.execute("SELECT * FROM complaints WHERE id = ?", (complaint_id,))
-        complaint = await cursor.fetchone()
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
 
-        if not complaint:
-            raise HTTPException(status_code=404, detail="Жалоба не найдена")
-
-        text = complaint['text']
-        v_bank_id = complaint['victim_bank_id']
-
-        amount = extractor.extract(text)
-        if not amount:
-            raise HTTPException(
-                status_code=400,
-                detail="Не удалось извлечь сумму из текста жалобы"
-            )
-
-        trans = await db.find_transaction_info(v_bank_id, amount)
-        if not trans:
-            raise HTTPException(
-                status_code=404,
-                detail="Подозрительная транзакция не найдена"
-            )
-
-        await cursor.execute(
-            "UPDATE complaints SET status = 'Processed' WHERE id = ?",
-            (complaint_id,)
-        )
-        await db.conn.commit()
-
-        audit_log(user_id, f"Расследована жалоба #{complaint_id}")
-
-        return {
-            "status": "Success",
-            "message": "Мошенник найден, жалоба обработана",
-            "data": {
-                "transaction_date": trans['transaction_date'],
-                "amount": amount,
-                "victim_account": trans['victim_account'],
-                "fraud_account": trans['fraud_account'],
-                "fraud_bank_id": trans['fraud_bank_id']
-            }
-        }
+    audit_log(user_id, f"Investigated complaint #{complaint_id}")
+    return result
 
 
 @app.get("/cases/{fraud_id}/calls", dependencies=[Depends(verify_token)])
-async def get_fraud_calls(
-        fraud_id: str,
-        victim_id: str
+async def get_calls(
+    fraud_id: str,
+    victim_id: str
 ) -> List[Dict[str, Any]]:
-    """Возвращает логи звонков между подозреваемым и жертвой.
+    """Получает историю звонков между предполагаемым мошенником и жертвой.
 
-    Аргументы:
-        fraud_id: Банковский ID пользователя подозреваемого.
-        victim_id: Банковский ID пользователя жертвы.
+    Args:
+        fraud_id: ID мошенника.
+        victim_id: ID жертвы.
 
-    Возвращает:
-        Список записей о взаимодействии через звонки.
+    Returns:
+        Список звонков.
 
-    Исключения:
-        HTTPException: Если не удается определить номера телефонов для любой из сторон.
+    Raises:
+        HTTPException: Если телефоны участников не найдены.
     """
-    async with EcosystemDB(DB_PATH) as db:
-        cursor = await db.conn.cursor()
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
 
-        await cursor.execute(
+        # 1. Получаем телефонные номера участников
+        async with db.execute(
             "SELECT phone FROM bank_clients WHERE userId = ?", (fraud_id,)
-        )
-        f_row = await cursor.fetchone()
-        await cursor.execute(
+        ) as cursor:
+            f_row = await cursor.fetchone()
+
+        async with db.execute(
             "SELECT phone FROM bank_clients WHERE userId = ?", (victim_id,)
-        )
-        v_row = await cursor.fetchone()
+        ) as cursor:
+            v_row = await cursor.fetchone()
 
         if not f_row or not v_row:
-            raise HTTPException(
-                status_code=404,
-                detail="Не удалось найти номера телефонов по ID"
-            )
+            raise HTTPException(status_code=404, detail="Phones not found")
 
-        calls = await db.get_calls(str(v_row['phone']), str(f_row['phone']))
-
-        return [
-            {
-                "from": c["from_call"],
-                "to": c["to_call"],
-                "duration": c["duration_sec"],
-                "date": c["event_date"]
-            }
-            for c in calls
-        ]
+        # 2. Поиск звонков в базе данных мобильного оператора
+        f_phone, v_phone = f_row['phone'], v_row['phone']
+        query = """
+            SELECT from_call AS 'from', to_call AS 'to', 
+                   duration_sec AS duration, event_date AS date 
+            FROM mobile_build 
+            WHERE (from_call = ? AND to_call = ?) 
+               OR (from_call = ? AND to_call = ?)
+        """
+        async with db.execute(query, (f_phone, v_phone, v_phone, f_phone)) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
 
 
 @app.get("/cases/{fraud_id}/delivery", dependencies=[Depends(verify_token)])
-async def get_fraud_delivery(fraud_id: str) -> Dict[str, Any]:
-    """Возвращает историю доставок на маркетплейсе для подозреваемого.
+async def get_delivery(fraud_id: str) -> Dict[str, Any]:
+    """Получает данные о доставках маркетплейса для указанного ID.
 
-    Аргументы:
-        fraud_id: Уникальный идентификатор подозреваемого.
+    Args:
+        fraud_id: Банковский ID пользователя.
 
-    Возвращает:
-        Словарь, содержащий записи о доставках, или сообщение об их отсутствии.
+    Returns:
+        Словарь со списком доставок или сообщением об их отсутствии.
     """
-    async with EcosystemDB(DB_PATH) as db:
-        market_data = await db.get_market_activity(fraud_id)
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
 
-        if not market_data:
-            return {"message": "Активность на маркетплейсе не найдена", "data": []}
+        # Маппинг банковского ID на ID маркетплейса
+        mapping_query = (
+            "SELECT marketplace_id FROM ecosystem_mapping WHERE bank_id = ?"
+        )
+        async with db.execute(mapping_query, (fraud_id,)) as cursor:
+            mapping = await cursor.fetchone()
 
-        return {
-            "data": [
-                {
-                    "address": m["address"],
-                    "contact_name": m["contact_fio"],
-                    "contact_phone": m["contact_phone"],
-                    "date": m["event_date"]
-                }
-                for m in market_data
-            ]
-        }
+        if not mapping:
+            return {"data": [], "message": "No marketplace account found"}
+
+        delivery_query = """
+            SELECT address, contact_fio, contact_phone, event_date AS date 
+            FROM market_place_delivery 
+            WHERE user_id = ?
+        """
+        async with db.execute(
+            delivery_query, (mapping['marketplace_id'],)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return {"data": [dict(r) for r in rows]}
