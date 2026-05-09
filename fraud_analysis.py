@@ -1,8 +1,14 @@
+"""Модуль для расследования мошеннических транзакций в банковской экосистеме.
+
+Этот модуль извлекает суммы из текста жалоб, ищет соответствующие транзакции
+в базе данных SQLite и формирует детальные профили пользователей с тегами риска.
+"""
+
 import asyncio
 import json
 import logging
 import re
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 import aiosqlite
 import pandas as pd
@@ -16,16 +22,25 @@ class AmountExtractor:
     """Извлекает сумму транзакции из текстового описания жалобы."""
 
     def __init__(self) -> None:
-        # Улучшенная регулярка: поддерживает пробелы и точки в числах (например, "5 000 руб" или "10.000 ₽")
-        self.pattern = re.compile(r'([\d\s\.]+)[\s]?(?:руб|р|₽)', re.IGNORECASE)
+        """Инициализирует регулярное выражение для поиска денежных сумм."""
+        # Поддерживает пробелы и точки: "5 000 руб", "10.000 ₽", "500р"
+        self._pattern = re.compile(r'([\d\s\.]+)[\s]?(?:руб|р|₽)', re.IGNORECASE)
 
     def extract(self, text: str) -> Optional[int]:
+        """Парсит текст для поиска суммы.
+
+        Args:
+            text: Строка текста жалобы.
+
+        Returns:
+            Целое число (сумма) или None, если сумма не найдена или некорректна.
+        """
         if not text or pd.isna(text):
             return None
 
-        match = self.pattern.search(text)
+        match = self._pattern.search(text)
         if match:
-            # Очищаем от пробелов и точек перед конвертацией в int
+            # Очищаем от пробелов и точек перед конвертацией
             clean_number = re.sub(r'[\s\.]', '', match.group(1))
             try:
                 return int(clean_number)
@@ -38,20 +53,38 @@ class EcosystemDB:
     """Класс для взаимодействия с базой данных транзакций экосистемы."""
 
     def __init__(self, db_path: str) -> None:
+        """Инициализирует подключение к БД.
+
+        Args:
+            db_path: Путь к файлу базы данных SQLite.
+        """
         self.db_path = db_path
         self.conn: Optional[aiosqlite.Connection] = None
 
     async def connect(self) -> None:
+        """Устанавливает асинхронное соединение с базой данных."""
         self.conn = await aiosqlite.connect(self.db_path)
         self.conn.row_factory = aiosqlite.Row
 
     async def close(self) -> None:
+        """Закрывает соединение с базой данных."""
         if self.conn:
             await self.conn.close()
 
-    async def find_transaction(self, victim_id: str, amount: int) -> Optional[aiosqlite.Row]:
+    async def find_transaction(
+        self, victim_id: str, amount: int
+    ) -> Optional[aiosqlite.Row]:
+        """Ищет последнюю транзакцию по ID жертвы и сумме.
+
+        Args:
+            victim_id: Идентификатор пострадавшего (userId).
+            amount: Сумма транзакции.
+
+        Returns:
+            Строка результата запроса или None.
+        """
         query = """
-            SELECT 
+            SELECT
                 v.fio AS victim_name,
                 f.fio AS fraud_name,
                 t.event_date AS date,
@@ -69,90 +102,133 @@ class EcosystemDB:
         async with self.conn.execute(query, (victim_id, amount)) as cursor:
             return await cursor.fetchone()
 
-    async def get_user_profile_data(self, bank_id: str) -> Optional[Dict[str, Any]]:
+    async def get_user_profile_data(
+        self, bank_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Собирает комплексные данные о пользователе из разных таблиц.
+
+        Args:
+            bank_id: ID пользователя в банковской системе.
+
+        Returns:
+            Словарь со списками транзакций, звонков и заказов или None.
+        """
         if not self.conn:
             return None
 
-        async with self.conn.execute("SELECT * FROM unified_users WHERE bank_id = ?", (bank_id,)) as cursor:
+        # 1. Основные данные пользователя
+        user_query = "SELECT * FROM unified_users WHERE bank_id = ?"
+        async with self.conn.execute(user_query, (bank_id,)) as cursor:
             user = await cursor.fetchone()
             if not user:
                 return None
 
         account = user['account']
 
+        # 2. Жалобы
         complaints_query = """
-                    SELECT DISTINCT c.text, c.event_date, v.fio AS author_name
-                    FROM complaints c
-                    JOIN bank_clients v ON c.victim_bank_id = v.userId
-                    JOIN bank_transactions t ON t.account_out = v.account
-                    WHERE t.account_in = ?
-                """
+            SELECT DISTINCT c.text, c.event_date, v.fio AS author_name
+            FROM complaints c
+            JOIN bank_clients v ON c.victim_bank_id = v.userId
+            JOIN bank_transactions t ON t.account_out = v.account
+            WHERE t.account_in = ?
+        """
         async with self.conn.execute(complaints_query, (account,)) as cursor:
-            complaints_raw = await cursor.fetchall()
-        async with self.conn.execute(
-                "SELECT * FROM bank_transactions WHERE account_out = ? OR account_in = ? LIMIT 10",
-                (account, account)
-        ) as cursor:
-            transfers_raw = await cursor.fetchall()
+            complaints = await cursor.fetchall()
 
-            # Безопасное извлечение телефона
-            phone_mobile = user['phone_mobile']
-            calls_raw: List[aiosqlite.Row] = []
-            if phone_mobile:
-                phone = str(int(phone_mobile))
-                async with self.conn.execute(
-                        "SELECT * FROM mobile_build WHERE from_call = ? OR to_call = ? LIMIT 10",
-                        (phone, phone)
-                ) as cursor:
-                    calls_raw = await cursor.fetchall()
+        # 3. Транзакции
+        transfers_query = """
+            SELECT * FROM bank_transactions
+            WHERE account_out = ? OR account_in = ?
+            LIMIT 10
+        """
+        async with self.conn.execute(transfers_query, (account, account)) as cursor:
+            transfers = await cursor.fetchall()
 
-            mkt_id = user['marketplace_id']
-            orders_raw: List[aiosqlite.Row] = []
-            if mkt_id:
-                async with self.conn.execute(
-                        "SELECT * FROM market_place_delivery WHERE user_id = ? LIMIT 10",
-                        (mkt_id,)
-                ) as cursor:
-                    orders_raw = await cursor.fetchall()
+        # 4. Звонки
+        calls = []
+        if user['phone_mobile']:
+            phone = str(int(user['phone_mobile']))
+            calls_query = """
+                SELECT * FROM mobile_build
+                WHERE from_call = ? OR to_call = ?
+                LIMIT 10
+            """
+            async with self.conn.execute(calls_query, (phone, phone)) as cursor:
+                calls = await cursor.fetchall()
 
-            return {
-                "user": user,
-                "complaints": complaints_raw,
-                "transfers": transfers_raw,
-                "calls": calls_raw,
-                "orders": orders_raw
-            }
+        # 5. Заказы маркетплейса
+        orders = []
+        if user['marketplace_id']:
+            orders_query = """
+                SELECT * FROM market_place_delivery
+                WHERE user_id = ?
+                LIMIT 10
+            """
+            async with self.conn.execute(orders_query, (user['marketplace_id'],)) as cursor:
+                orders = await cursor.fetchall()
+
+        return {
+            "user": user,
+            "complaints": complaints,
+            "transfers": transfers,
+            "calls": calls,
+            "orders": orders
+        }
 
 
 class FraudInvestigator:
     """Оркестратор процесса расследования жалоб на мошенничество."""
 
     def __init__(self, db_path: str, complaints_path: str) -> None:
+        """Инициализирует следователя и загружает данные.
+
+        Args:
+            db_path: Путь к БД.
+            complaints_path: Путь к TSV-файлу с жалобами.
+        """
         self.db_path = db_path
         self.complaints_path = complaints_path
         self.extractor = AmountExtractor()
+        self.complaints_df = self._load_complaints()
 
-        # Загружаем датафрейм один раз при инициализации
+    def _load_complaints(self) -> pd.DataFrame:
+        """Загружает файл жалоб."""
         try:
-            self.complaints_df = pd.read_csv(self.complaints_path, sep='\t')
+            return pd.read_csv(self.complaints_path, sep='\t')
         except Exception as e:
-            logger.error(f"Failed to load complaints file: {e}")
-            self.complaints_df = pd.DataFrame()
+            logger.error("Failed to load complaints file: %s", e)
+            return pd.DataFrame()
 
-    def _generate_tags(self, user_row: aiosqlite.Row, transfers: List[aiosqlite.Row]) -> List[str]:
-        """Генерирует список тегов на основе правил бизнес-логики."""
+    def _generate_tags(
+        self, user_row: aiosqlite.Row, transfers: List[aiosqlite.Row]
+    ) -> List[str]:
+        """Генерирует список тегов на основе бизнес-логики.
+
+        Args:
+            user_row: Данные пользователя из БД.
+            transfers: Список транзакций пользователя.
+
+        Returns:
+            Список строковых тегов (город, уровень кражи, оператор и т.д.).
+        """
         tags = []
-
         user = dict(user_row)
 
+        # Тег города
         address = user.get('address', '')
         if address:
             city_part = address.split(',')[0].strip()
-            clean_city = re.sub(r'^(д\.|г\.|с\.|ст\.|к\.|клх|п\.)\s*', '', city_part)
+            clean_city = re.sub(
+                r'^(д\.|г\.|с\.|ст\.|к\.|клх|п\.)\s*', '', city_part
+            )
             tags.append(clean_city)
 
+        # Тег объема украденного
         account = user.get('account')
-        stolen_sum = sum(t['value'] for t in transfers if t['account_in'] == account)
+        stolen_sum = sum(
+            t['value'] for t in transfers if t['account_in'] == account
+        )
 
         if stolen_sum >= 50000:
             tags.append("Крупная кража")
@@ -161,108 +237,123 @@ class FraudInvestigator:
         elif stolen_sum > 1:
             tags.append("Малая кража")
 
+        # Тег маркетплейса
         mkt_id = user.get('marketplace_id', '')
         mkt_match = re.search(r'\d+', mkt_id)
         if mkt_match:
-            mkt_num = int(mkt_match.group())
-            tags.append("Wildberries" if mkt_num % 2 == 0 else "Ozon")
+            tags.append("Wildberries" if int(mkt_match.group()) % 2 == 0 else "Ozon")
 
+        # Тег оператора
         mob_id = user.get('mobile_id', '')
         mob_match = re.search(r'\d+$', mob_id)
         if mob_match:
-            last_two_digits = int(mob_match.group()[-2:])
-            op_code = last_two_digits % 4
+            op_code = int(mob_match.group()[-2:]) % 4
             operators = {0: "МТС", 1: "МегаФон", 2: "Билайн", 3: "Tele2"}
             tags.append(operators.get(op_code, "Неизвестный оператор"))
 
         return tags
 
-    async def fetch_full_user_profile(self, bank_id: str) -> Optional[Dict[str, Any]]:
-        """Собирает и форматирует профиль пользователя из базы данных."""
+    async def fetch_full_user_profile(
+        self, bank_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Собирает и форматирует профиль пользователя.
 
+        Args:
+            bank_id: Банковский идентификатор пользователя.
+
+        Returns:
+            Словарь с форматированным профилем для фронтенда или None.
+        """
         db = EcosystemDB(self.db_path)
         await db.connect()
         try:
-            # Получаем сырые данные через класс БД
             data = await db.get_user_profile_data(bank_id)
             if not data:
                 return None
 
             user = data['user']
-            complaints_raw = data['complaints']
-            transfers_raw = data['transfers']
-            calls_raw = data['calls']
-            orders_raw = data['orders']
+            is_fraud = len(data['complaints']) > 0
 
-            # Безопасное форматирование телефона
-            phone_bank = user['phone_bank']
-            formatted_phone = f"+{int(phone_bank)}" if phone_bank else "Неизвестно"
+            phone_val = user['phone_bank']
+            formatted_phone = f"+{int(phone_val)}" if phone_val else "Неизвестно"
 
-            # Преобразуем в "красивый" формат
             profile = {
                 "id": user['unique_id'],
                 "name": user['fio_bank'],
-                "status": "Мошенник" if len(complaints_raw) > 0 else "Пользователь",
+                "status": "Мошенник" if is_fraud else "Пользователь",
                 "phone": formatted_phone,
                 "address": user['address'],
                 "bankAccount": user['account'],
                 "marketplaceId": user['marketplace_id'],
                 "bankId": user['bank_id'],
-                "threat": "_high" if len(complaints_raw) > 0 else "_low",
-                "tags": self._generate_tags(user, transfers_raw),
-                "complaints": [{"author": c['author_name'], "text": c['text']} for c in complaints_raw],
+                "threat": "_high" if is_fraud else "_low",
+                "tags": self._generate_tags(user, data['transfers']),
+                "complaints": [
+                    {"author": c['author_name'], "text": c['text']}
+                    for c in data['complaints']
+                ],
                 "transfers": [
-                    {"date": t['event_date'], "sum": f"{t['value']} ₽", "from": t['account_out'], "to": t['account_in']}
-                    for t in transfers_raw
+                    {
+                        "date": t['event_date'],
+                        "sum": f"{t['value']} ₽",
+                        "from": t['account_out'],
+                        "to": t['account_in']
+                    } for t in data['transfers']
                 ],
                 "calls": [
-                    {"date": c['event_date'], "duration": f"{c['duration_sec']} сек.", "from": c['from_call'],
-                     "to": c['to_call']}
-                    for c in calls_raw
+                    {
+                        "date": c['event_date'],
+                        "duration": f"{c['duration_sec']} сек.",
+                        "from": c['from_call'],
+                        "to": c['to_call']
+                    } for c in data['calls']
                 ],
                 "orders": [
                     {
                         "date": o['event_date'],
                         "id": o['user_id'],
                         "fio": o['contact_fio'],
-                        "phone": f"+{int(o['contact_phone'])}" if o['contact_phone'] else "Неизвестно",
+                        "phone": (f"+{int(o['contact_phone'])}"
+                                  if o['contact_phone'] else "Неизвестно"),
                         "address": o['address']
-                    }
-                    for o in orders_raw
+                    } for o in data['orders']
                 ],
                 "connections": []
             }
             return profile
-
         finally:
             await db.close()
 
     async def investigate_single_case(self, user_id: str) -> str:
-        """Проводит полный цикл анализа жалобы по ID пользователя."""
+        """Проводит анализ жалобы по ID пользователя.
 
+        Args:
+            user_id: ID пострадавшего пользователя.
+
+        Returns:
+            JSON-строка с результатами поиска транзакции или ошибкой.
+        """
         if self.complaints_df.empty:
-            return json.dumps({"error": "Complaints data is unavailable"}, ensure_ascii=False)
+            return json.dumps({"error": "Complaints data unavailable"})
 
-        # 1. Поиск жалобы в уже загруженном датафрейме
-        user_complaints = self.complaints_df[self.complaints_df['userId'] == user_id].sort_values(
-            'event_date', ascending=False
-        )
+        # Фильтруем жалобы пользователя
+        user_complaints = self.complaints_df[
+            self.complaints_df['userId'] == user_id
+        ].sort_values('event_date', ascending=False)
 
         if user_complaints.empty:
-            return json.dumps({"error": f"Complaint for user {user_id} not found"}, ensure_ascii=False)
+            return json.dumps({"error": f"No complaints for user {user_id}"})
 
         complaint_text = user_complaints.iloc[0]['text']
         amount = self.extractor.extract(complaint_text)
 
         if not amount:
-            return json.dumps({"error": "Could not extract amount from text"}, ensure_ascii=False)
+            return json.dumps({"error": "Amount extraction failed"})
 
-        # 2. Поиск соответствующей транзакции в базе данных
         db = EcosystemDB(self.db_path)
         await db.connect()
         try:
             trans = await db.find_transaction(user_id, amount)
-
             if trans:
                 result = {
                     "transaction_info": {
@@ -274,30 +365,28 @@ class FraudInvestigator:
                     "fraud_bank_id": trans['fraud_bank_id']
                 }
             else:
-                result = {"error": "Transaction not found for given amount and user"}
+                result = {"error": "Transaction not found"}
 
             return json.dumps(result, indent=4, ensure_ascii=False)
-
         finally:
             await db.close()
 
 
 async def main() -> None:
-    """Точка входа для демонстрации работы расследования."""
+    """Точка входа для демонстрации работы."""
     investigator = FraudInvestigator(
         db_path='data/ecosystem_data.db',
         complaints_path='data/bank_complaints.tsv'
     )
 
-    # Тестовый ID
+    # Пример работы
     target_id = "B_6069"
+    profile = await investigator.fetch_full_user_profile(target_id)
 
-    profile_dict = await investigator.fetch_full_user_profile(target_id)
-
-    if profile_dict:
-        print(json.dumps(profile_dict, indent=4, ensure_ascii=False))
+    if profile:
+        print(json.dumps(profile, indent=4, ensure_ascii=False))
     else:
-        print(f"Пользователь с ID {target_id} не найден.")
+        print(f"User {target_id} not found.")
 
 
 if __name__ == "__main__":
