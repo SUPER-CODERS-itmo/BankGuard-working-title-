@@ -242,8 +242,6 @@ const initDashboard = async () => {
         const data = suspectsData.find(p => p.id === currentSuspectId);
         if (!data) return;
 
-        // Твое API возвращает 'tags', у коллеги было 'reasons'.
-        // Подправляем только это слово в мапе.
         const tagsToDisplay = data.tags || data.reasons || [];
 
         summaryPane.innerHTML = `
@@ -258,12 +256,12 @@ const initDashboard = async () => {
                     <p><span>Адрес</span> <span class="white">${data.address}</span></p>
                     <p><span>Банковский счёт</span> <span class="white">${data.bankAccount}</span></p>
                     <p><span>ID на маркетплейсе</span> <span class="white">${data.marketplaceId}</span></p>
-                    <p><span>ID мобильного оператора</span> <span class="white">${data.operatorId || 'N/A'}</span></p>
+                    <p><span>ID мобильного оператора</span> <span class="white">${data.mobileId}</span></p>
                     <p><span>ID в банке</span> <span class="white">${data.bankId}</span></p>
                 </div>
 
                 <div class="summary__reasons reasons">
-                    <h2 class="reasons__title">Причины (теги)</h2>
+                    <h2 class="reasons__title">Теги</h2>
                     <div class="reasons__list">
                         ${tagsToDisplay.map(tag => `<span class="reason-tag">${tag}</span>`).join('')}
                     </div>
