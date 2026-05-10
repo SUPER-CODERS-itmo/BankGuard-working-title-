@@ -15,8 +15,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import pandas as pd
 
-# Предполагается, что код из предыдущего ответа находится в fraud_analysis.py
-from fraud_analysis import FraudInvestigator
+from backend.fraud_analysis import FraudInvestigator
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -27,13 +26,13 @@ security = HTTPBearer()
 
 # Пути к данным
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BASE_DIR, 'data', 'ecosystem_data.db')
-COMPLAINTS_TSV = os.path.join(BASE_DIR, 'data', 'bank_complaints.tsv')
+DB_PATH = os.path.join(BASE_DIR, 'backend\data', 'ecosystem_data.db')
+COMPLAINTS_TSV = os.path.join(BASE_DIR, 'backend\data', 'bank_complaints.tsv')
 SECRET_TOKEN = "secret-token-123"
 
 
 def verify_token(
-    credentials: HTTPAuthorizationCredentials = Security(security)
+        credentials: HTTPAuthorizationCredentials = Security(security)
 ) -> str:
     """Проверяет токен авторизации.
 
@@ -85,10 +84,10 @@ def root() -> RedirectResponse:
 
 @app.get("/complaints", dependencies=[Depends(verify_token)])
 async def get_complaints(
-    start_date: Optional[str] = Query(None, description="Format: YYYY-MM-DD"),
-    end_date: Optional[str] = Query(None, description="Format: YYYY-MM-DD"),
-    skip: int = 0,
-    limit: int = 20
+        start_date: Optional[str] = Query(None, description="Format: YYYY-MM-DD"),
+        end_date: Optional[str] = Query(None, description="Format: YYYY-MM-DD"),
+        skip: int = 0,
+        limit: int = 20
 ) -> List[Dict[str, Any]]:
     """Возвращает список жалоб с фильтрацией по дате.
 
@@ -135,8 +134,8 @@ async def get_complaint_text(complaint_id: str) -> Dict[str, str]:
 
 @app.post("/investigate/{complaint_id}")
 async def investigate(
-    complaint_id: str,
-    user_id: str = Depends(verify_token)
+        complaint_id: str,
+        user_id: str = Depends(verify_token)
 ) -> Dict[str, Any]:
     """Запускает процесс автоматизированного расследования по жалобе.
 
@@ -163,8 +162,8 @@ async def investigate(
 
 @app.get("/cases/{fraud_id}/calls", dependencies=[Depends(verify_token)])
 async def get_calls(
-    fraud_id: str,
-    victim_id: str
+        fraud_id: str,
+        victim_id: str
 ) -> List[Dict[str, Any]]:
     """Получает историю звонков между предполагаемым мошенником и жертвой.
 
@@ -261,10 +260,10 @@ async def get_full_profile_endpoint(bank_id: str) -> Dict[str, Any]:
 
 @app.get("/frauds", dependencies=[Depends(verify_token)])
 async def get_frauds(
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    skip: int = 0,
-    limit: int = 10
+        start_date: Optional[str] = Query(None),
+        end_date: Optional[str] = Query(None),
+        skip: int = 0,
+        limit: int = 10
 ) -> List[Dict[str, Any]]:
     """Возвращает список полных профилей мошенников, выявленных по жалобам.
 
