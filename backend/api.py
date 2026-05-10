@@ -14,9 +14,11 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Security
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import pandas as pd
+from pydantic import BaseModel
 
 from backend.fraud_analysis import FraudInvestigator
 from fastapi.staticfiles import StaticFiles
+from backend.auth import authenticate_user, create_session, validate_token
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -27,28 +29,23 @@ security = HTTPBearer()
 
 # Пути к данным
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+USERS_DB = os.path.join(BASE_DIR, 'backend/data', 'users.db')
 DB_PATH = os.path.join(BASE_DIR, 'backend\data', 'ecosystem_data.db')
 COMPLAINTS_TSV = os.path.join(BASE_DIR, 'backend\data', 'bank_complaints.tsv')
 SECRET_TOKEN = "secret-token-123"
 
 
-def verify_token(
-        credentials: HTTPAuthorizationCredentials = Security(security)
-) -> str:
-    """Проверяет токен авторизации.
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
-    Args:
-        credentials: Учетные данные из заголовка Authorization.
 
-    Returns:
-        Идентификатор оператора при успешной проверке.
-
-    Raises:
-        HTTPException: Если токен невалиден (403).
-    """
-    if credentials.credentials != SECRET_TOKEN:
-        raise HTTPException(status_code=403, detail="Invalid token")
-    return "operator_01"
+def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)) -> dict:
+    token = credentials.credentials
+    user_data = validate_token(token)  # Проверка через ваш модуль auth.py
+    if not user_data:
+        raise HTTPException(status_code=403, detail="Сессия истекла или неверный токен")
+    return user_data
 
 
 def audit_log(user_id: str, action: str) -> None:
@@ -81,6 +78,16 @@ def read_complaints_safe() -> pd.DataFrame:
 # def root() -> RedirectResponse:
 #    """Перенаправляет корневой запрос на документацию API (Swagger)."""
 #   return RedirectResponse(url="/docs")
+
+@app.post("/login")
+async def login(data: LoginRequest):
+    success, token, user_data = authenticate_user(USERS_DB, data.username, data.password)
+
+    if success and token:
+        create_session(token, user_data)  # Сохраняем сессию в памяти (как в вашем auth.py)
+        return {"token": token, "user": user_data}
+
+    raise HTTPException(status_code=401, detail="Неверный логин или пароль")
 
 
 @app.get("/complaints", dependencies=[Depends(verify_token)])
