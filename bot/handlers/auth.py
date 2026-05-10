@@ -54,6 +54,45 @@ def main_menu(is_admin: bool) -> ReplyKeyboardMarkup:
     rows.append([KeyboardButton(text="🚪 Выйти")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
+def _welcome_text(username: str, role: str, is_admin: bool = False) -> str:
+    """Возвращает приветственное сообщение с описанием функционала.
+
+    Args:
+        username: Логин пользователя.
+        role:     Роль (Оператор / Администратор).
+        is_admin: True если пользователь — администратор.
+
+    Returns:
+        Markdown-строка с гайдом по боту.
+    """
+    admin_block = (
+        f"\n👥 *Пользователи* _(только для админа)_\n"
+        f"Список всех операторов и администраторов. "
+        f"Видно кто привязан к боту 🟢 и получает уведомления, "
+        f"а кто ещё не входил 🔴.\n"
+    ) if is_admin else ""
+
+    return (
+        f"✅ *Добро пожаловать, {username}!*\n"
+        f"🔑 Роль: {role}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🤖 *BEN Fraud Monitor* — система мониторинга мошенничества\n\n"
+        f"📋 *Жалобы*\n"
+        f"Последние 10 жалоб клиентов. Для каждой — кнопка быстрого расследования.\n\n"
+        f"🔍 *Расследовать*\n"
+        f"Введите ID жалобы вручную. Бот найдёт транзакцию, "
+        f"проверит звонки и доставки мошенника.\n"
+        f"Также работает команда: /case B\\_5400\n\n"
+        f"🏴‍☠️ *Топ мошенников*\n"
+        f"10 последних выявленных мошенников с профилями: "
+        f"теги, звонки, заказы маркетплейса.\n"
+        f"{admin_block}\n"
+        f"🔔 *Уведомления*\n"
+        f"Бот автоматически присылает новые кейсы по мере их поступления в систему.\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"Выберите действие в меню 👇"
+    )
+
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, users_db: UsersDB) -> None:
@@ -71,8 +110,9 @@ async def cmd_start(message: Message, state: FSMContext, users_db: UsersDB) -> N
     existing = users_db.get_by_telegram(tg_id)
 
     if existing:
+        role = "Администратор" if existing["is_admin"] else "Оператор"
         await message.answer(
-            f"👋 Добро пожаловать, *{existing['username']}*!",
+            _welcome_text(existing["username"], role, bool(existing["is_admin"])),
             parse_mode="Markdown",
             reply_markup=main_menu(bool(existing["is_admin"])),
         )
@@ -133,9 +173,7 @@ async def on_password(message: Message, state: FSMContext, users_db: UsersDB) ->
 
     role = "Администратор" if user["is_admin"] else "Оператор"
     await message.answer(
-        f"✅ Вход выполнен!\n\n"
-        f"👤 *{username}* | {role}\n\n"
-        f"Вы будете получать уведомления о новых кейсах.",
+        _welcome_text(username, role, bool(user["is_admin"])),
         parse_mode="Markdown",
         reply_markup=main_menu(bool(user["is_admin"])),
     )

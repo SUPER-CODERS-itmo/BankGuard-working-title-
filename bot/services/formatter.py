@@ -85,14 +85,13 @@ def fmt_investigation(
 def fmt_top_fraudsters(cases: list[dict]) -> str:
     """Форматирует список последних 10 выявленных мошенников.
 
-    Данные берутся из fraud_cases_detected.csv через FraudCasesReader.
+    Данные берутся из GET /frauds — список полных профилей.
 
     Args:
-        cases: Список словарей с данными кейсов (поля из CSV).
+        cases: Список профилей мошенников (поля из fetch_full_user_profile).
 
     Returns:
         Markdown-строка со списком мошенников.
-        Каждая запись: ID, ФИО, сумма, дата, флаги звонков и маркетплейса.
     """
     if not cases:
         return "📭 Данных нет."
@@ -100,51 +99,51 @@ def fmt_top_fraudsters(cases: list[dict]) -> str:
     lines = ["🏴‍☠️ *Последние 10 выявленных мошенников*\n"]
 
     for i, c in enumerate(cases, 1):
-        has_calls  = "✅" if c.get("has_calls")           else "❌"
-        has_market = "✅" if c.get("has_market_activity") else "❌"
-        amount     = c.get("extracted_amount", "—")
-        date       = str(c.get("transaction_date", "—"))[:10]
+        has_calls  = "✅" if c.get("calls")  else "❌"
+        has_market = "✅" if c.get("orders") else "❌"
+        tags       = ", ".join(c.get("tags", [])) or "—"
 
         lines.append(
-            f"*{i}.* `{c.get('fraud_bank_owner_id', '—')}` — "
-            f"{c.get('fraud_bank_owner_fio', '—')}\n"
-            f"     💰 {amount} руб. | 🗓 {date}\n"
+            f"*{i}.* `{c.get('bankId', '—')}` — "
+            f"{c.get('name', '—')}\n"
+            f"     🏷 {tags}\n"
             f"     📞 {has_calls} звонки  📦 {has_market} маркетплейс\n"
-            f"     📱 {c.get('fraud_bank_owner_phone', '—')}"
+            f"     📱 {c.get('phone', '—')}"
         )
 
     return "\n".join(lines)
 
 
 def fmt_fraud_card(c: dict) -> str:
-    """Форматирует детальную карточку одного мошенника из CSV.
+    """Форматирует детальную карточку одного мошенника.
 
     Вызывается при нажатии инлайн-кнопки в списке топ-10.
+    Данные берутся из GET /full-profile/{bank_id}.
 
     Args:
-        c: Словарь с данными кейса из fraud_cases_detected.csv.
-           Ожидаемые ключи: fraud_bank_owner_fio, fraud_bank_owner_id,
-           fraud_bank_owner_phone, fraud_account, extracted_amount,
-           transaction_date, has_calls, has_market_activity, complaint_id.
+        c: Профиль мошенника из fetch_full_user_profile.
 
     Returns:
         Markdown-строка с полной карточкой мошенника.
     """
-    has_calls  = "✅ есть" if c.get("has_calls")           else "❌ нет"
-    has_market = "✅ есть" if c.get("has_market_activity") else "❌ нет"
-    date       = str(c.get("transaction_date", "—"))[:19]
+    has_calls  = "✅ есть" if c.get("calls")  else "❌ нет"
+    has_market = "✅ есть" if c.get("orders") else "❌ нет"
+    tags       = ", ".join(c.get("tags", [])) or "—"
+    complaints = c.get("complaints", [])
+    last_complaint = complaints[0].get("text", "—")[:80] if complaints else "—"
 
     return (
         f"🔎 *Карточка мошенника*\n\n"
-        f"👤 ФИО:         `{c.get('fraud_bank_owner_fio', '—')}`\n"
-        f"🏦 ID в банке:  `{c.get('fraud_bank_owner_id', '—')}`\n"
-        f"📱 Телефон:     `{c.get('fraud_bank_owner_phone', '—')}`\n"
-        f"💳 Счёт:        `{c.get('fraud_account', '—')}`\n\n"
-        f"💰 Сумма:       *{c.get('extracted_amount', '—')} руб.*\n"
-        f"🗓 Дата:        {date}\n\n"
-        f"📞 Звонки:      {has_calls}\n"
-        f"📦 Маркетплейс: {has_market}\n\n"
-        f"📋 Жалоба ID:  `{c.get('complaint_id', '—')}`"
+        f"👤 ФИО:         `{c.get('name', '—')}`\n"
+        f"🏦 ID в банке:  `{c.get('bankId', '—')}`\n"
+        f"📱 Телефон:     `{c.get('phone', '—')}`\n"
+        f"💳 Счёт:        `{c.get('bankAccount', '—')}`\n"
+        f"📍 Адрес:       {c.get('address', '—')}\n\n"
+        f"🏷 Теги:        {tags}\n\n"
+        f"💰 Переводов:   {len(c.get('transfers', []))}\n"
+        f"📞 Звонков:     {len(c.get('calls', []))}\n"
+        f"📦 Заказов:     {len(c.get('orders', []))}\n\n"
+        f"📋 Жалоба:      _{last_complaint}..._"
     )
 
 

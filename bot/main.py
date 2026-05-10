@@ -7,7 +7,6 @@
 Зависимости пробрасываются в хэндлеры через dp[key] (workflow_data aiogram 3):
     users_db     — UsersDB    (bot_users.db)
     api          — BenAPIClient (BEN API)
-    fraud_reader — FraudCasesReader (fraud_cases_detected.csv)
 
 Порядок регистрации роутеров важен:
     auth → cases → admin
@@ -30,7 +29,6 @@ if sys.platform == "win32":
 from config import config
 from services.api_client import BenAPIClient
 from services.db import UsersDB
-from services.fraud_reader import FraudCasesReader
 from services.poller import FraudPoller
 from handlers import auth, cases, admin
 
@@ -56,7 +54,7 @@ async def main() -> None:
 
     users_db     = UsersDB(config.users_db_path)
     api          = BenAPIClient(config.api_base_url, config.api_token)
-    fraud_reader = FraudCasesReader(config.fraud_cases_csv)
+
 
     session = AiohttpSession(proxy="socks5://127.0.0.1:10808")
     bot = Bot(
@@ -70,7 +68,7 @@ async def main() -> None:
     # Зависимости для хэндлеров
     dp["users_db"]     = users_db
     dp["api"]          = api
-    dp["fraud_reader"] = fraud_reader
+
 
     # Роутеры — порядок важен
     dp.include_router(auth.router)

@@ -9,6 +9,8 @@
     POST /investigate/{complaint_id}  — запуск расследования через FraudInvestigator.
     GET  /cases/{fraud_id}/calls      — история звонков между мошенником и жертвой.
     GET  /cases/{fraud_id}/delivery   — доставки маркетплейса для мошенника.
+    GET  /frauds                      — список профилей выявленных мошенников.
+    GET  /full-profile/{bank_id}      — полный профиль пользователя (единое окно).
 """
 
 from typing import Any, Optional
@@ -143,6 +145,25 @@ class BenAPIClient:
             contact_phone, date) или message если аккаунт маркетплейса не найден.
         """
         return await self._get(f"/cases/{fraud_id}/delivery")
+
+    # ── Мошенники ────────────────────────────────────────────────────────
+
+    async def get_frauds(
+            self,
+            start_date: Optional[str] = None,
+            end_date: Optional[str] = None,
+            skip: int = 0,
+            limit: int = 10,
+    ) -> list[dict]:
+        params: dict[str, Any] = {"skip": skip, "limit": limit}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        return await self._get("/frauds", params=params)
+
+    async def get_full_profile(self, bank_id: str) -> dict:
+        return await self._get(f"/full-profile/{bank_id}")
 
     # ── Низкоуровневый хелпер ────────────────────────────────────────────
 

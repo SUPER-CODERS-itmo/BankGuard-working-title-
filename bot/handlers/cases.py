@@ -25,7 +25,6 @@ from aiogram.types import (
 
 from services.api_client import BenAPIClient
 from services.db import UsersDB
-from services.fraud_reader import FraudCasesReader
 from services.formatter import fmt_investigation, fmt_top_fraudsters, fmt_fraud_card
 
 logger = logging.getLogger(__name__)
@@ -319,81 +318,73 @@ async def cb_delivery(cb: CallbackQuery, api: BenAPIClient) -> None:
 
 @router.message(F.text == "🏴‍☠️ Топ мошенников")
 async def show_top_fraudsters(
-    message:      Message,
-    users_db:     UsersDB,
-    fraud_reader: FraudCasesReader,
+    message:  Message,
+    users_db: UsersDB,
+    api:      BenAPIClient,
 ) -> None:
-    """Показывает последние 10 выявленных мошенников из fraud_cases_detected.csv.
-
-    Данные сортируются по transaction_date (от нового к старому).
-    Для каждого кейса строится инлайн-кнопка с callback 'fraudcard:{complaint_id}'.
+    """Показывает последние 10 выявленных мошенников через GET /frauds.
 
     Args:
-        message:      Входящее сообщение.
-        users_db:     Сервис базы данных пользователей.
-        fraud_reader: Сервис чтения CSV с кейсами.
+        message:  Входящее сообщение.
+        users_db: Сервис базы данных пользователей.
+        api:      Клиент BEN API.
     """
     if not _auth(users_db, str(message.from_user.id)):
         await message.answer("⚠️ Сначала войдите: /start")
         return
 
-    cases = fraud_reader.get_latest(10)
-    text  = fmt_top_fraudsters(cases)
+    await message.answer("⏳ Загружаю...")
+    try:
+        cases = await api.get_frauds(limit=10)
+    except Exception as exc:
+        await message.answer(f"❌ Ошибка API:\n`{exc}`", parse_mode="Markdown")
+        return
+
+    text = fmt_top_fraudsters(cases)
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(
-                text=f"🔎 {c.get('fraud_bank_owner_id','?')} — "
-                     f"{str(c.get('fraud_bank_owner_fio',''))[:20]}",
-                callback_data=f"fraudcard:{c.get('complaint_id','')}"
+                text=f"🔎 {c.get('bankId', '?')} — "
+                     f"{str(c.get('name', ''))[:20]}",
+                callback_data=f"fraudcard:{c.get('bankId', '')}"
             )]
             for c in cases
         ]
     )
     await message.answer(text, parse_mode="Markdown", reply_markup=kb)
 
-
 @router.callback_query(F.data.startswith("fraudcard:"))
 async def cb_fraud_card(
-    cb:           CallbackQuery,
-    fraud_reader: FraudCasesReader,
-    api:          BenAPIClient,
+    cb:  CallbackQuery,
+    api: BenAPIClient,
 ) -> None:
-    """Показывает детальную карточку мошенника из CSV.
-
-    Строит карточку через fmt_fraud_card и добавляет инлайн-кнопки
-    для просмотра звонков, доставок и запуска расследования.
+    """Показывает детальную карточку мошенника через GET /full-profile/{bank_id}.
 
     Args:
-        cb:           CallbackQuery с data='fraudcard:{complaint_id}'.
-        fraud_reader: Сервис чтения CSV с кейсами.
-        api:          Клиент BEN API (не используется напрямую, но нужен для кнопок).
+        cb:  CallbackQuery с data='fraudcard:{bank_id}'.
+        api: Клиент BEN API.
     """
     await cb.answer()
-    complaint_id = cb.data.split(":", 1)[1]
+    bank_id = cb.data.split(":", 1)[1]
 
-    case = fraud_reader.get_by_id(complaint_id)
-    if not case:
-        await cb.message.answer("❌ Кейс не найден.")
+    await cb.message.answer("⏳ Загружаю профиль...")
+    try:
+        profile = await api.get_full_profile(bank_id)
+    except Exception as exc:
+        await cb.message.answer(f"❌ `{exc}`", parse_mode="Markdown")
         return
 
-    text     = fmt_fraud_card(case)
-    fraud_id = case.get("fraud_bank_owner_id")
+    text = fmt_fraud_card(profile)
 
-    kb = None
-    if fraud_id:
-        kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(
-                text="📞 Звонки",
-                callback_data=f"calls:{fraud_id}:{complaint_id}"
-            ),
-            InlineKeyboardButton(
-                text="📦 Доставки",
-                callback_data=f"delivery:{fraud_id}"
-            ),
-            InlineKeyboardButton(
-                text="🔍 Расследовать",
-                callback_data=f"inv:{complaint_id}"
-            ),
-        ]])
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="📞 Звонки",
+            callback_data=f"calls:{bank_id}:{bank_id}"
+        ),
+        InlineKeyboardButton(
+            text="📦 Доставки",
+            callback_data=f"delivery:{bank_id}"
+        ),
+    ]])
     await cb.message.answer(text, parse_mode="Markdown", reply_markup=kb)
