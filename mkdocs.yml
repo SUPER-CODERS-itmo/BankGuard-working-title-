@@ -47,6 +47,7 @@ plugins:
             - src_back
             - src_alice
             - src_sasha
+            - src_tg
             - src_tests
             - src_tests/tests
             - src_bus_front
