@@ -31,80 +31,122 @@ main.py  ──►  Dispatcher (aiogram)  ──►  handlers: auth / cases / ad
 
 ## 🔐 Хэндлеры
 
-### Авторизация
+### `auth.py` — Авторизация
 
-`/start`, вход по логину/паролю, выход. FSM-состояния: `LoginFSM.login` → `LoginFSM.password`.
-После успешного входа `telegram_id` привязывается в `bot_users.db` — с этого момента оператор получает уведомления.
+`/start`, вход по логину/паролю, выход.
 
-::: auth
-    options:
-      show_root_heading: true
-      show_source: true
+**FSM-состояния:**
+
+- `LoginFSM.login` — ожидание логина
+- `LoginFSM.password` — ожидание пароля
+
+После успешного входа `telegram_id` привязывается в `bot_users.db` —
+с этого момента оператор получает уведомления от поллера.
+Пароль сразу удаляется из чата через `message.delete()`.
+
+| Хэндлер | Триггер | Действие |
+|---|---|---|
+| `cmd_start` | `/start` | Проверяет авторизацию, показывает меню или запускает FSM |
+| `on_login` | `LoginFSM.login` | Принимает логин, переходит к паролю |
+| `on_password` | `LoginFSM.password` | Проверяет пароль, привязывает TG ID |
+| `cmd_logout` | `🚪 Выйти` | Отвязывает TG ID, отключает уведомления |
 
 ---
 
-### Жалобы и расследования
+### `cases.py` — Жалобы и расследования
 
-Три точки входа для расследования: кнопка меню → FSM, инлайн-кнопка из списка жалоб, команда `/case <ID>`.
+Три точки входа для расследования:
 
-::: cases
-    options:
-      show_root_heading: true
-      show_source: true
+1. Кнопка `🔍 Расследовать` → FSM → ввод ID вручную
+2. Инлайн-кнопка из списка жалоб → callback `inv:{id}`
+3. Команда `/case <ID>`
+
+| Хэндлер | Триггер | Действие |
+|---|---|---|
+| `show_complaints` | `📋 Жалобы` | Последние 10 жалоб + инлайн-кнопки |
+| `ask_id` | `🔍 Расследовать` | Запускает FSM для ввода ID |
+| `on_id_input` | `InvestigateFSM.waiting_id` | Принимает ID, запускает расследование |
+| `cb_investigate` | `inv:{id}` | Расследование по инлайн-кнопке |
+| `cmd_case` | `/case <ID>` | Расследование через команду |
+| `show_top_fraudsters` | `🏴‍☠️ Топ мошенников` | Топ-10 через `GET /frauds` |
+| `cb_fraud_card` | `fraudcard:{bank_id}` | Полный профиль через `GET /full-profile` |
+| `cb_calls` | `calls:{fraud_id}:{victim_id}` | История звонков |
+| `cb_delivery` | `delivery:{fraud_id}` | Доставки маркетплейса |
 
 ---
 
-### Администрирование
+### `admin.py` — Администрирование
 
-Управление пользователями: добавление, удаление, привязка Telegram ID вручную.
+Управление пользователями. Доступно только администраторам.
 
-::: admin
-    options:
-      show_root_heading: true
-      show_source: true
+| Хэндлер | Действие |
+|---|---|
+| `show_users` | Список всех сотрудников (🟢 привязан / 🔴 нет) |
+| `add_user` | Создать нового пользователя (FSM: логин → пароль → роль) |
+| `delete_user` | Удалить пользователя по логину |
+| `set_tg_id` | Привязать Telegram ID вручную |
 
 ---
 
 ## 🛠 Сервисы
 
-### Клиент BEN API
+### `api_client.py` — Клиент BEN API
 
-Асинхронная обёртка над всеми эндпоинтами BEN API. Авторизация через Bearer-токен.
+Асинхронная обёртка над всеми эндпоинтами BEN API.
+Авторизация через Bearer-токен. Использует `httpx.AsyncHTTPTransport(retries=1)`
+для обхода VPN-прокси на localhost.
 
-::: api_client
-    options:
-      show_root_heading: true
-      show_source: true
-
----
-
-### База пользователей
-
-Работа с `bot_users.db`: авторизация, привязка Telegram ID, управление пользователями.
-
-::: db
-    options:
-      show_root_heading: true
-      show_source: true
+| Метод | Эндпоинт | Описание |
+|---|---|---|
+| `get_complaints()` | `GET /complaints` | Список жалоб с пагинацией |
+| `get_complaint()` | `GET /complaints/{id}` | Текст жалобы |
+| `investigate()` | `POST /investigate/{id}` | Запуск расследования |
+| `get_calls()` | `GET /cases/{id}/calls` | Звонки между мошенником и жертвой |
+| `get_delivery()` | `GET /cases/{id}/delivery` | Доставки маркетплейса |
+| `get_frauds()` | `GET /frauds` | Список профилей мошенников |
+| `get_full_profile()` | `GET /full-profile/{id}` | Полный профиль пользователя |
 
 ---
 
-### Поллер новых жалоб
+### `db.py` — База пользователей
 
-Фоновая задача: каждые 60 секунд проверяет новые жалобы и рассылает сводку операторам.
+Работа с `bot_users.db` (SQLite). Хранит сотрудников бота отдельно от основной БД экосистемы.
+Пароли хранятся как SHA-256 + соль (bcrypt не поддерживается на Python 3.14).
 
-::: poller
-    options:
-      show_root_heading: true
-      show_source: true
+| Метод | Описание |
+|---|---|
+| `authenticate()` | Проверка логина и пароля |
+| `get_by_telegram()` | Поиск пользователя по TG ID |
+| `link_telegram()` | Привязать TG ID к аккаунту |
+| `unlink_telegram()` | Отвязать TG ID |
+| `get_all()` | Список всех пользователей |
+| `add_user()` | Создать нового пользователя |
+| `delete_user()` | Удалить пользователя |
 
 ---
 
-### Форматирование сообщений
+### `poller.py` — Поллер новых жалоб
+
+Фоновая задача на `asyncio.TaskGroup`. Каждые 60 секунд запрашивает
+`GET /complaints`, сравнивает с последним известным ID и рассылает
+сводку по новым кейсам всем операторам с привязанным `telegram_id`.
+
+```python
+async with asyncio.TaskGroup() as tg:
+    tg.create_task(dp.start_polling(bot))
+    tg.create_task(poller.start())   # ← вот этот
+```
+
+---
+
+### `formatter.py` — Форматирование сообщений
 
 Все Telegram-сообщения бота. Только форматирование — никакой бизнес-логики.
 
-::: formatter
-    options:
-      show_root_heading: true
-      show_source: true
+| Функция | Описание |
+|---|---|
+| `fmt_investigation()` | Сводка по расследованию (транзакция + звонки + доставки) |
+| `fmt_top_fraudsters()` | Список топ-10 мошенников |
+| `fmt_fraud_card()` | Детальная карточка мошенника |
+| `fmt_user_list()` | Список пользователей для админа |
+| `_escape_md()` | Экранирование спецсимволов Markdown |
