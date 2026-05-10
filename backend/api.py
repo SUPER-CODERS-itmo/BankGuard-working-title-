@@ -30,8 +30,8 @@ security = HTTPBearer()
 # Пути к данным
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 USERS_DB = os.path.join(BASE_DIR, 'backend/data', 'users.db')
-DB_PATH = os.path.join(BASE_DIR, 'backend\data', 'ecosystem_data.db')
-COMPLAINTS_TSV = os.path.join(BASE_DIR, 'backend\data', 'bank_complaints.tsv')
+DB_PATH = os.path.join(BASE_DIR, 'backend/data', 'ecosystem_data.db')
+COMPLAINTS_TSV = os.path.join(BASE_DIR, 'backend/data', 'bank_complaints.tsv')
 SECRET_TOKEN = "secret-token-123"
 
 
