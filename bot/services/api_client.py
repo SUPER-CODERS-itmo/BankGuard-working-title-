@@ -13,7 +13,7 @@
 
 from typing import Any, Optional
 import httpx
-
+_TRANSPORT = httpx.AsyncHTTPTransport(retries=1)
 
 class BenAPIClient:
     """Клиент BEN API с авторизацией через Bearer-токен.
@@ -100,7 +100,7 @@ class BenAPIClient:
         Raises:
             httpx.HTTPStatusError: 404 если жалоба или транзакция не найдены.
         """
-        async with httpx.AsyncClient(timeout=60, proxy=None) as client:
+        async with httpx.AsyncClient(timeout=60, transport=_TRANSPORT) as client:
             r = await client.post(
                 f"{self.base_url}/investigate/{complaint_id}",
                 headers=self._headers,
@@ -160,7 +160,7 @@ class BenAPIClient:
             httpx.HTTPStatusError: При ошибке HTTP (4xx, 5xx).
             httpx.TimeoutException: При превышении таймаута (30 сек).
         """
-        async with httpx.AsyncClient(timeout=30, proxy=None) as client:
+        async with httpx.AsyncClient(timeout=30, transport=_TRANSPORT) as client:
             r = await client.get(
                 f"{self.base_url}{path}",
                 headers=self._headers,

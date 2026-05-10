@@ -34,7 +34,7 @@ class Config:
     bot_token: str = os.getenv("BOT_TOKEN", "8642122674:AAGyINEflUNL3uJdt_U5u_c6opSFr58NoBQ")
 
     # ── BEN API ─────────────────────────────────────────────────────────
-    api_base_url: str = os.getenv("BEN_API_URL",   "http://localhost:8000")
+    api_base_url: str = os.getenv("BEN_API_URL", "http://127.0.0.1:8000")
     api_token:    str = os.getenv("BEN_API_TOKEN",  "secret-token-123")
 
     # ── Пути к данным ───────────────────────────────────────────────────
