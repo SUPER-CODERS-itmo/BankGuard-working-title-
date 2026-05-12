@@ -2,3 +2,8 @@ aiogram
 httpx
 aiosqlite
 pandas
+numpy
+faker
+pytest-asyncio
+pytest
+services
