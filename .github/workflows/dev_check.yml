@@ -14,8 +14,6 @@ on:
 jobs:
   my-super-test-job:
     runs-on: ubuntu-latest
-    env:
-      PYTHONPATH: ${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4  
@@ -29,7 +27,9 @@ jobs:
         run: |
           pip install pandas numpy faker aiogram httpx aiosqlite aiohttp-socks
       - name: Run local tests
+        env:
+          PYTHONPATH: ./:./bot
         run: |
-          python -m unittest discover
+          python -m unittest discover -s tests -t .
 
 
