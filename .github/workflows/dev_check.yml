@@ -3,12 +3,10 @@ name: Dev Branch Check
 on:
   push:
     branches:
-      - alice_back
-      - sasha_back
-      - tg_bot
+      - dev_sasha_test
   pull_request:
     branches:
-      - back
+      - main
 
 jobs:
   my-super-test-job:
@@ -24,11 +22,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pandas numpy faker aiogram httpx aiosqlite aiohttp-socks pytest
+          pip install pandas numpy faker aiogram httpx aiosqlite aiohttp-socks pytest fastapi
 
       - name: Run tests
         run: |
           python -m unittest discover -s tests -t .
         env:
-          PYTHONPATH: "./:./bot"
+          PYTHONPATH: "./:./backend"
           BOT_TOKEN: "test-token-stub"
