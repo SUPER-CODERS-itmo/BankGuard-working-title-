@@ -45,6 +45,8 @@ plugins:
           paths:
             - .
             - src_project
+            - src_project/backend
+            - src_project/backend/tests
           options:
             show_source: true
             show_root_heading: true
