@@ -28,5 +28,5 @@ jobs:
         run: |
           python -m unittest discover -s tests -t .
         env:
-          PYTHONPATH: "./:./backend"
+          PYTHONPATH: "./:./backend:./bot"
           BOT_TOKEN: "test-token-stub"
