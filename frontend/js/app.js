@@ -38,9 +38,8 @@ __webpack_require__.r(__webpack_exports__);
 document.addEventListener('DOMContentLoaded', () => {
     const profileBtn = document.querySelector('#profileBtn');
     const menu = document.querySelector('.profile-menu');
-    const logoutBtn = document.querySelector('.profile-menu__link._exit');
+    const exitBtn = document.querySelector('._exit');
 
-    // Логика открытия/закрытия меню
     if (profileBtn && menu) {
         profileBtn.addEventListener('click', function(e) {
             if (e.target.closest('.profile-menu__link')) return;
@@ -59,37 +58,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Логика кнопки "Выйти из аккаунта"
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
+    if (exitBtn) {
+        exitBtn.addEventListener('click', (e) => {
+            e.preventDefault(); // Отменяем стандартный переход по href="#"
 
-            const token = localStorage.getItem('token');
-
-            // 1. Оповещаем бэкенд об удалении сессии (если добавили эндпоинт /logout)
-            if (token) {
-                try {
-                    await fetch('/logout', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                } catch (err) {
-                    console.error('Ошибка при завершении сессии на сервере:', err);
-                }
-            }
-
-            // 2. Сбрасываем данные авторизации из браузера
+            // 1. Очищаем сохраненные данные сессии
             localStorage.removeItem('token');
             localStorage.removeItem('userName');
             localStorage.removeItem('userId');
 
-            // 3. Возвращаем на страницу входа
+            // 2. Перекидываем на страницу логина
             window.location.href = '/index.html';
         });
     }
 });
 
-/***/ },
 
 /***/ },
 
