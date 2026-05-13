@@ -41,7 +41,7 @@ pytest -v
 Покрывают логику `FraudInvestigator`: извлечение сумм из текста жалоб,
 поиск транзакций в БД, построение профилей и генерацию тегов риска.
 
-::: tests_fraud_analysis
+::: test_fraud_analysis
     options:
       show_root_heading: true
       show_source: true
