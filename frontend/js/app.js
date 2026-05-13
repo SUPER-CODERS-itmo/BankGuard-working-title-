@@ -38,18 +38,19 @@ __webpack_require__.r(__webpack_exports__);
 document.addEventListener('DOMContentLoaded', () => {
     const profileBtn = document.querySelector('#profileBtn');
     const menu = document.querySelector('.profile-menu');
+    const logoutBtn = document.querySelector('.profile-menu__link._exit');
 
+    // Логика открытия/закрытия меню
     if (profileBtn && menu) {
         profileBtn.addEventListener('click', function(e) {
             if (e.target.closest('.profile-menu__link')) return;
 
             e.preventDefault();
             e.stopPropagation();
-            
+
             menu.classList.toggle('_active');
             console.log('Меню переключено');
         });
-
 
         document.addEventListener('click', (e) => {
             if (!profileBtn.contains(e.target)) {
@@ -57,7 +58,38 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Логика кнопки "Выйти из аккаунта"
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+
+            const token = localStorage.getItem('token');
+
+            // 1. Оповещаем бэкенд об удалении сессии (если добавили эндпоинт /logout)
+            if (token) {
+                try {
+                    await fetch('/logout', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                } catch (err) {
+                    console.error('Ошибка при завершении сессии на сервере:', err);
+                }
+            }
+
+            // 2. Сбрасываем данные авторизации из браузера
+            localStorage.removeItem('token');
+            localStorage.removeItem('userName');
+            localStorage.removeItem('userId');
+
+            // 3. Возвращаем на страницу входа
+            window.location.href = '/index.html';
+        });
+    }
 });
+
+/***/ },
 
 /***/ },
 
