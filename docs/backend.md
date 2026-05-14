@@ -1,7 +1,7 @@
 # 🛠 Backend
 
-Бэкенд BEN состоит из двух частей: **BEN API** — REST-интерфейс на FastAPI,
-и **Fraud Investigator** — движок расследований, который работает под капотом.
+Бэкенд BEN состоит из нескольких модулей: **BEN API** — REST-интерфейс на FastAPI,
+**Fraud Investigator** — движок расследований, модули авторизации и утилиты для работы с БД.
 
 ---
 
@@ -12,15 +12,23 @@ Swagger-документация доступна на `http://localhost:8000/do
 
 ### Эндпоинты
 
-| Метод | Путь | Описание |
-|---|---|---|
-| GET | `/complaints` | Список жалоб с фильтрацией по дате |
-| GET | `/complaints/{id}` | Текст конкретной жалобы |
-| POST | `/investigate/{id}` | Запуск расследования по жалобе |
-| GET | `/cases/{id}/calls` | Звонки между мошенником и жертвой |
-| GET | `/cases/{id}/delivery` | Доставки маркетплейса мошенника |
-| GET | `/frauds` | Список профилей выявленных мошенников |
-| GET | `/full-profile/{id}` | Полный профиль пользователя |
+| Метод | Путь | Авторизация | Описание |
+|---|---|---|---|
+| POST | `/login` | ❌ | Получить токен по логину/паролю |
+| GET | `/complaints` | ✅ | Список жалоб с фильтрацией по дате |
+| GET | `/complaints/{id}` | ✅ | Текст конкретной жалобы |
+| POST | `/investigate/{id}` | ✅ | Запуск расследования по жалобе |
+| GET | `/cases/{id}/calls` | ✅ | Звонки между мошенником и жертвой |
+| GET | `/cases/{id}/delivery` | ✅ | Доставки маркетплейса мошенника |
+| GET | `/frauds` | ✅ | Список профилей выявленных мошенников |
+| GET | `/full-profile/{id}` | ✅ | Полный профиль пользователя |
+
+### Документация кода
+
+::: api
+    options:
+      show_root_heading: true
+      show_source: true
 
 ---
 
@@ -40,11 +48,51 @@ Swagger-документация доступна на `http://localhost:8000/do
     Оркестратор расследования. Связывает `AmountExtractor` и `EcosystemDB`,
     строит полные профили мошенников с тегами риска (город, уровень кражи, оператор).
 
+::: fraud_analysis
+    options:
+      show_root_heading: true
+      show_source: true
+
 ---
 
-## 📄 Документация кода
+## 🔐 Авторизация
 
-::: fraud_analysis
+`auth.py` — управление сессиями и проверка токенов для BEN API.
+
+::: auth
+    options:
+      show_root_heading: true
+      show_source: true
+
+---
+
+## 🗄️ База данных пользователей
+
+`db_auth.py` — создание и инициализация таблицы `users` в `users.db`.
+
+::: db_auth
+    options:
+      show_root_heading: true
+      show_source: true
+
+---
+
+## 👤 Создание пользователей
+
+`create_user.py` — утилита для создания пользователей через CLI.
+
+::: create_user
+    options:
+      show_root_heading: true
+      show_source: true
+
+---
+
+## 🔑 Инициализация администратора
+
+`init_admin.py` — создаёт первого демо-администратора (`admin` / `admin123`) если таблица пуста.
+
+::: init_admin
     options:
       show_root_heading: true
       show_source: true
