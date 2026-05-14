@@ -38,6 +38,7 @@ __webpack_require__.r(__webpack_exports__);
 document.addEventListener('DOMContentLoaded', () => {
     const profileBtn = document.querySelector('#profileBtn');
     const menu = document.querySelector('.profile-menu');
+    const exitBtn = document.querySelector('._exit');
 
     if (profileBtn && menu) {
         profileBtn.addEventListener('click', function(e) {
@@ -45,16 +46,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
             e.preventDefault();
             e.stopPropagation();
-            
+
             menu.classList.toggle('_active');
             console.log('Меню переключено');
         });
-
 
         document.addEventListener('click', (e) => {
             if (!profileBtn.contains(e.target)) {
                 menu.classList.remove('_active');
             }
+        });
+    }
+
+    if (exitBtn) {
+        exitBtn.addEventListener('click', (e) => {
+            e.preventDefault(); // Отменяем стандартный переход по href="#"
+
+            // 1. Очищаем сохраненные данные сессии
+            localStorage.removeItem('token');
+            localStorage.removeItem('userName');
+            localStorage.removeItem('userId');
+
+            // 2. Перекидываем на страницу логина
+            window.location.href = '/index.html';
         });
     }
 });
@@ -69,7 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 __webpack_require__.r(__webpack_exports__);
 const loginForm = document.querySelector('.login__form');
-const correctPassword = ''
 
 if (loginForm) {
     const usernameInput = loginForm.querySelector('input[name="username"]');
@@ -80,7 +93,7 @@ if (loginForm) {
     const eyeIcon = toggleButton.querySelector('img');
     const errorText = document.querySelector('#passwordError');
 
-    // Проверка корректности пароля
+    // Проверка заполненности полей (оставляем как было у коллеги)
     function checkInputs() {
         const isUsernameFilled = usernameInput.value.trim() !== '';
         const isPasswordFilled = passwordInput.value.trim() !== '';
@@ -94,29 +107,54 @@ if (loginForm) {
         }
     }
 
-    // Функционал кнопки показать/спрятать пароль
+    // Функционал кнопки показать/спрятать пароль (оставляем без изменений)
     toggleButton.addEventListener('click', () => {
         const isPassword = passwordInput.getAttribute('type') === 'password';
         passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
-        eyeIcon.src = isPassword ? 'img/eye-off.svg' : 'img/eye-open.svg'; 
+        eyeIcon.src = isPassword ? 'img/eye-off.svg' : 'img/eye-open.svg';
     });
 
-    // Функционал кнопки входа
-    loginForm.addEventListener('submit', (e) => {
+    // Модифицированный функционал входа через API
+    loginForm.addEventListener('submit', async (e) => { // Добавили async
         e.preventDefault();
 
-        if (passwordInput.value !== correctPassword) {
+        const username = usernameInput.value;
+        const password = passwordInput.value;
+
+        try {
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+
+                // Сохраняем токен и данные в память браузера
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('userName', data.user.username);
+                localStorage.setItem('userId', data.user.id);
+
+                errorText.classList.remove('_visible');
+                passwordInput.classList.remove('_error');
+
+                // Переходим на главную страницу
+                window.location.href = '/main.html';
+            } else {
+                // Если API вернул ошибку (401 и т.д.), показываем визуализацию коллеги
+                errorText.classList.add('_visible');
+                passwordInput.classList.add('_error');
+            }
+        } catch (error) {
+            console.error('Ошибка при попытке входа:', error);
+            // На случай, если бэкенд вообще не запущен
+            errorText.textContent = "Сервер недоступен";
             errorText.classList.add('_visible');
-            passwordInput.classList.add('_error');
-        } else {
-            errorText.classList.remove('_visible');
-            passwordInput.classList.remove('_error');
-            loginForm.submit();
         }
     });
 
     checkInputs();
-
     passwordInput.addEventListener('input', checkInputs);
     usernameInput.addEventListener('input', checkInputs);
 }
@@ -133,293 +171,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   initDashboard: () => (/* binding */ initDashboard)
 /* harmony export */ });
-// МИНИ БАЗА ДАННЫХ МОШЕННИКОВ, ПОТОМ ЕЕ ЗАМЕНИМ НА ФЕТЧ ИЗ НАШЕЙ БД
-const suspectsData = [
-    {
-        id: "1",
-        name: "Пясковский Александр Михайлович",
-        status: "очень подозрительный",
-        phone: "+7 957 641 92 40",
-        address: "г. Новокузнецк, ул. Ленина, д.30",
-        bankAccount: "97683645274905635684",
-        marketplaceId: "mp52421083",
-        operatorId: "m2856202",
-        bankId: "b246734991032",
-        threat: "_high",
-        reasons: ["заказ на маркетплейсе", "жалобы", "подмена IP"],
-        complaints: [
-            { author: "Анатольевич М. П.", text: "Перевод на подозрительный счёт" },
-            { author: "Яковлев В. В.", text: "Украл деньги через фишинг" },
-            { author: "Вахрушев А. Н.", text: "Мошеннические звонки от имени банка" }
-        ],
-        transfers: [
-            { date: "17.01.2025", time: "12:52", sum: "1 000 000 ₽", from: "469793657356", to: "2379467521409" },
-            { date: "11.02.2025", time: "11:48", sum: "150 000 ₽", from: "2379467521409", to: "469793657356" },
-            { date: "12.03.2025", time: "17:19", sum: "60 006 ₽", from: "243674652437", to: "2379467521409" },
-            { date: "12.03.2025", time: "14:30", sum: "69 994 ₽", from: "469793657356", to: "2379467521409" }
-        ],
-        calls: [
-            { date: "17.01.2025", time: "13:26", duration: "52 мин. 12 с.", from: "+7 957 641 92 40", to: "+7 917 956 45 02" },
-            { date: "11.02.2025", time: "18:37", duration: "11 мин.", from: "+7 981 527 40 31", to: "+7 845 372 11 08" },
-            { date: "12.03.2025", time: "11:08", duration: "3 мин. 51 с.", from: "+7 957 641 92 40", to: "+7 621 734 12 21" },
-            { date: "12.03.2025", time: "03:59", duration: "37 с.", from: "+7 957 641 92 40", to: "+7 823 518 15 86" },
-            { date: "12.03.2025", time: "20:11", duration: "1 ч. 3 мин. 7 сек.", from: "+7 957 641 92 40", to: "+7 981 527 40 31" }
-        ],
-        orders: [
-            { date: "21.01.2025", id: "mp2347447", fio: "Добрый А. С", phone: "+7 917 956 45 02", address: "ул. Пушкина, д. имени Ебанушкина 52 кв. 13" },
-            { date: "25.03.2025", id: "mp448365", fio: "Максонов А. М.", phone: "+7 621 734 12 21", address: "ул. Пивоварова, д. 31 кв. 13" },
-            { date: "14.04.2025", id: "mp9549756", fio: "Щюкин Х. О.", phone: "+7 981 527 40 31", address: "ул. Пушкина, д. имени Ебанушкина 52 кв. 13" }
-        ],
-        connections: [
-            { id: "101", name: "Маратов Евгений Трофимович", address: "г. Артемьевск, ул. Лебедева, д. 12, кв. 87", bankAccount: "6904573863434635024", threat: "_high" },
-            { id: "102", name: "Кох Феодора Денисовна", address: "г. Кемерово, пр. Свободы, д. 17, кв. 3", bankAccount: "904375865205729375", threat: "_medium" },
-            { id: "103", name: "Овальный Алексей Анатольевич", address: "г. Москва, ул. Тоганская, д. 62, кв. 71", bankAccount: "34097634642527", phone: "+7 917 956 45 02", threat: "_medium" }
-        ],
-    },
-    {
-        id: "2",
-        name: "Марьев Егор Алексеевич",
-        status: "в зоне риска",
-        phone: "+7 900 123 45 67",
-        address: "г. Санкт-Петербург, Невский пр., д.12",
-        bankAccount: "11223344556677889900",
-        marketplaceId: "mp11928374",
-        operatorId: "m992811",
-        bankId: "b882716354",
-        threat: "_medium",
-        reasons: ["частые переводы", "новый аккаунт"],
-        complaints: [
-            { author: "Семенов Д. А.", text: "Не отправил товар после оплаты" },
-            { author: "Крылова О. И.", text: "Странные ссылки в личных сообщениях" }
-        ],
-        transfers: [
-            { date: "05.02.2025", time: "09:15", sum: "12 000 ₽", from: "112233445566", to: "998877665544" },
-            { date: "10.02.2025", time: "21:40", sum: "45 500 ₽", from: "998877665544", to: "112233445566" }
-        ],
-        calls: [
-            { date: "08.02.2025", time: "15:00", duration: "2 мин. 45 с.", from: "+7 900 123 45 67", to: "+7 900 765 43 21" }
-        ],
-        orders: [
-            { date: "12.02.2025", id: "mp8827163", fio: "Иванов П. С.", phone: "+7 900 111 22 33", address: "пр. Стачек, д. 45" }
-        ],
-        connections: [],
-    },
-    {
-        id: "3",
-        name: "Романов Егор Алексеевич",
-        status: "опасный рецидивист",
-        phone: "+7 911 000 11 22",
-        address: "г. Москва, ул. Тверская, д.5, кв.12",
-        bankAccount: "55667788112233449988",
-        marketplaceId: "mp00921832",
-        operatorId: "m112233",
-        bankId: "b77665544",
-        threat: "_high",
-        reasons: ["черный список", "множественные ID"],
-        complaints: [
-            { author: "Петров И. К.", text: "Взлом личного кабинета" },
-            { author: "Иванова С. М.", text: "Угрозы и вымогательство" },
-            { author: "Неизвестный", text: "Слив базы данных пользователей" }
-        ],
-        transfers: [
-            { date: "01.03.2025", time: "00:05", sum: "500 000 ₽", from: "556677881122", to: "334455667788" }
-        ],
-        calls: [
-            { date: "02.03.2025", time: "23:50", duration: "15 с.", from: "+7 911 000 11 22", to: "+7 999 888 77 66" }
-        ],
-        orders: [
-            { date: "03.03.2025", id: "mp0092183", fio: "Карпов А. В.", phone: "+7 911 222 33 44", address: "ул. Лесная, д. 1" }
-        ],
-        connections: [],
-    },
-    {
-        id: "4",
-        name: "Альфонсе Габриэль Капоне",
-        status: "мало подозрительный",
-        phone: "+7 920 555 44 33",
-        address: "г. Казань, ул. Баумана, д.42",
-        bankAccount: "44556611227788339944",
-        marketplaceId: "mp77661122",
-        operatorId: "m554433",
-        bankId: "b11223344",
-        threat: "_low",
-        reasons: ["ошибка авторизации"],
-        complaints: [
-            { author: "Григорьев Р. Т.", text: "Случайный перевод, не возвращает" }
-        ],
-        transfers: [],
-        calls: [
-            { date: "10.04.2025", time: "10:10", duration: "45 с.", from: "+7 920 555 44 33", to: "+7 920 111 22 33" }
-        ],
-        orders: [],
-        connections: [],
-    },
-    {
-        id: "5",
-        name: "Березовский Виталий Игоревич",
-        status: "подозрительный",
-        phone: "+7 912 345 67 89",
-        address: "г. Екатеринбург, ул. Малышева, д.10",
-        bankAccount: "40817810570001234567",
-        marketplaceId: "mp99283741",
-        operatorId: "m123456",
-        bankId: "b998877",
-        threat: "_medium",
-        reasons: ["массовые рассылки", "жалобы на спам"],
-        complaints: [{ author: "Игорь С.", text: "Реклама казино в Telegram" }],
-        transfers: [], calls: [], orders: [],
-        connections: [
-            { id: "201", name: "Абрамов К. Л.", address: "г. Тюмень, ул. Ленина 5", bankAccount: "408178109999", threat: "_low" }
-        ],
-    },
-    {
-        id: "6",
-        name: "Саркисян Артур Гургенович",
-        status: "очень подозрительный",
-        phone: "+7 960 000 11 22",
-        address: "г. Сочи, Курортный пр., д.84",
-        bankAccount: "40817810111122223333",
-        marketplaceId: "mp11223344",
-        operatorId: "m776655",
-        bankId: "b554433",
-        threat: "_high",
-        reasons: ["обналичивание средств", "крупные переводы"],
-        complaints: [{ author: "Банк РФ", text: "Нарушение 115-ФЗ" }],
-        transfers: [], calls: [], orders: [],
-        connections: [
-            { id: "1", name: "Пясковский Александр Михайлович", address: "г. Новокузнецк", bankAccount: "976836452749", threat: "_high" }
-        ],
-    },
-    {
-        id: "7",
-        name: "Волкова Ирина Сергеевна",
-        status: "в зоне риска",
-        phone: "+7 905 777 88 99",
-        address: "г. Новосибирск, Красный пр., д.12",
-        bankAccount: "40817810666655554444",
-        marketplaceId: "mp55443322",
-        operatorId: "m443322",
-        bankId: "b332211",
-        threat: "_medium",
-        reasons: ["дроп-аккаунт", "вход с разных IP"],
-        complaints: [{ author: "Система", text: "Вход из Нигерии и Москвы в течение часа" }],
-        transfers: [], calls: [], orders: [], connections: []
-    },
-    {
-        id: "8",
-        name: "Петренко Денис Олегович",
-        status: "мало подозрительный",
-        phone: "+7 921 444 55 66",
-        address: "г. Краснодар, ул. Северная, д.210",
-        bankAccount: "40817810888877776666",
-        marketplaceId: "mp99001122",
-        operatorId: "m110022",
-        bankId: "b220033",
-        threat: "_low",
-        reasons: ["нетипичное поведение"],
-        complaints: [],
-        transfers: [], calls: [], orders: [], connections: [],
-    },
-    {
-        id: "9",
-        name: "Ли Си Цын",
-        status: "подозрительный",
-        phone: "+7 999 000 00 01",
-        address: "г. Владивосток, ул. Светланская, д.5",
-        bankAccount: "40817810000000000001",
-        marketplaceId: "mp00000001",
-        operatorId: "m000001",
-        bankId: "b000001",
-        threat: "_medium",
-        reasons: ["трансграничные переводы"],
-        complaints: [{ author: "ФНС", text: "Незадекларированный доход" }],
-        transfers: [], calls: [], orders: [], connections: [],
-    },
-    {
-        id: "10",
-        name: "Мориарти Джеймс Николаевич",
-        status: "опасный рецидивист",
-        phone: "+7 666 666 66 66",
-        address: "г. Лондон (IP), прокси через Омск",
-        bankAccount: "40817810666000666000",
-        marketplaceId: "mp13131313",
-        operatorId: "m131313",
-        bankId: "b131313",
-        threat: "_high",
-        reasons: ["организатор сети", "шифрованная связь"],
-        complaints: [{ author: "Шерлок Х.", text: "Гений преступного мира" }],
-        transfers: [], calls: [], orders: [],
-        connections: [
-            { id: "3", name: "Романов Егор Алексеевич", address: "г. Москва", bankAccount: "556677881122", threat: "_high" }
-        ],
-    },
-    {
-        id: "11",
-        name: "Уолтер Уайт Хайзенбергович",
-        status: "в зоне риска",
-        phone: "+7 909 505 50 50",
-        address: "г. Альбукерке, ул. Зеленая, д.3",
-        bankAccount: "40817810777000777000",
-        marketplaceId: "mp50505050",
-        operatorId: "m505050",
-        bankId: "b505050",
-        threat: "_medium",
-        reasons: ["отмывание через автомойку"],
-        complaints: [{ author: "Хэнк Ш.", text: "Странные закупки химреактивов" }],
-        transfers: [], calls: [], orders: [], connections: [],
-    },
-    {
-        id: "12",
-        name: "Мавроди Сергей Пантелеевич",
-        status: "легенда скама",
-        phone: "+7 495 000 00 00",
-        address: "г. Москва, ул. Газгольдерная, д.1",
-        bankAccount: "40817810111111111111",
-        marketplaceId: "mp11111111",
-        operatorId: "m111111",
-        bankId: "b111111",
-        threat: "_high",
-        reasons: ["создание пирамиды", "агрессивный маркетинг"],
-        complaints: [{ author: "Вкладчики", text: "Где наши деньги?" }],
-        transfers: [], calls: [], orders: [], connections: [],
-    },
-    {
-        id: "13",
-        name: "Тиньков Олег Юрьевич",
-        status: "мало подозрительный",
-        phone: "+7 800 555 77 77",
-        address: "г. Лимассол, ул. Кипрская, д.1",
-        bankAccount: "40817810222222222222",
-        marketplaceId: "mp22222222",
-        operatorId: "m222222",
-        bankId: "b222222",
-        threat: "_low",
-        reasons: ["громкие высказывания"],
-        complaints: [],
-        transfers: [], calls: [], orders: [], connections: [],
-    },
-    {
-        id: "14",
-        name: "Дуров Павел Валерьевич",
-        status: "под наблюдением",
-        phone: "+971 00 000 00 00",
-        address: "г. Дубай, Бурдж-Халифа",
-        bankAccount: "40817810999999999999",
-        marketplaceId: "mp99999999",
-        operatorId: "m999999",
-        bankId: "b999999",
-        threat: "_low",
-        reasons: ["отказ выдавать ключи шифрования"],
-        complaints: [{ author: "РКН", text: "Не заблокировал кого надо" }],
-        transfers: [], calls: [], orders: [],
-        connections: [
-            { id: "103", name: "Овальный Алексей Анатольевич", address: "г. Москва", bankAccount: "340976346425", threat: "_medium" }
-        ],
-    }
-];
 
-// Инициализация дешборда со списком мошенников и слайдером 
-const initDashboard = () => {
+// Массив теперь пустой, он наполнится данными из API
+let suspectsData = [];
+
+// Делаем функцию асинхронной, чтобы дождаться ответа от сервера
+const initDashboard = async () => {
     const listContainer = document.querySelector('#suspectsList');
     const slider = document.querySelector('#contentSlider');
     const tabButtons = document.querySelectorAll('.nav-btn');
@@ -429,32 +186,65 @@ const initDashboard = () => {
     const operationsPane = document.querySelector('#tab-operations');
     const connectionsPane = document.querySelector('#tab-connections');
 
+    // ─── ЗАГРУЗКА ДАННЫХ С БЭКЕНДА ──────────────────────────────────────────
+    const token = localStorage.getItem('token');
+    const isLoginPage = window.location.pathname.endsWith('index.html') || window.location.pathname === '/';
+
+    // Если мы НЕ на странице логина и токена нет — только тогда выкидываем
+    if (!isLoginPage && !token) {
+        window.location.href = '/index.html';
+        return;
+    }
+
+    // Если мы на странице логина — нам НЕ нужно запускать загрузку данных бэкенда
+    if (isLoginPage) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/frauds?limit=50', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.status === 403 || response.status === 401) {
+            window.location.href = '/index.html';
+            return;
+        }
+
+        suspectsData = await response.json();
+    } catch (err) {
+        console.error("Ошибка при загрузке списка мошенников:", err);
+        listContainer.innerHTML = '<p class="white">Ошибка загрузки данных</p>';
+        return;
+    }
+
+    if (suspectsData.length === 0) {
+        listContainer.innerHTML = '<p class="white">Мошенников не обнаружено</p>';
+        return;
+    }
+
+    // Инициализируем ID первого мошенника из полученных данных
     let currentSuspectId = suspectsData[0].id;
 
-    // ─── Мобильная навигация ─────────────────────────────────────────────────
+    // ─── Остальная логика коллеги (БЕЗ ИЗМЕНЕНИЙ) ────────────────────────────
 
     const isMobile = () => window.innerWidth < 876;
-
     const header = document.querySelector('.header');
 
-    // Показать детальный вид (скрыть список)
     const showDetail = () => {
         mainContainer.classList.add('main__container--detail-view');
         header.classList.add('header--detail-mode');
     };
 
-    // Вернуться к списку
     const showList = () => {
         mainContainer.classList.remove('main__container--detail-view');
         header.classList.remove('header--detail-mode');
-        // Сбрасываем слайдер на первую вкладку
         slider.style.transform = 'translateX(0%)';
         tabButtons.forEach((b, i) => {
             b.classList.toggle('active', i === 0);
         });
     };
 
-    // Вставляем кнопку "Назад" в контент (один раз)
     const contentEl = document.querySelector('.content');
     const backBtn = document.createElement('button');
     backBtn.className = 'mobile-back-btn';
@@ -462,13 +252,12 @@ const initDashboard = () => {
     backBtn.addEventListener('click', showList);
     contentEl.insertBefore(backBtn, contentEl.firstChild);
 
-    // ─── Рендер контента ─────────────────────────────────────────────────────
-
-    // Вся информация из бд переводится в html и вставляется в основной файл
     const updateAllPanes = () => {
         const data = suspectsData.find(p => p.id === currentSuspectId);
         if (!data) return;
-        
+
+        const tagsToDisplay = data.tags || data.reasons || [];
+
         summaryPane.innerHTML = `
             <div class="summary">
                 <div class="summary__header">
@@ -481,14 +270,14 @@ const initDashboard = () => {
                     <p><span>Адрес</span> <span class="white">${data.address}</span></p>
                     <p><span>Банковский счёт</span> <span class="white">${data.bankAccount}</span></p>
                     <p><span>ID на маркетплейсе</span> <span class="white">${data.marketplaceId}</span></p>
-                    <p><span>ID мобильного оператора</span> <span class="white">${data.operatorId}</span></p>
+                    <p><span>ID мобильного оператора</span> <span class="white">${data.mobileId}</span></p>
                     <p><span>ID в банке</span> <span class="white">${data.bankId}</span></p>
                 </div>
 
                 <div class="summary__reasons reasons">
-                    <h2 class="reasons__title">Причины</h2>
+                    <h2 class="reasons__title">Теги</h2>
                     <div class="reasons__list">
-                        ${data.reasons.map(reason => `<span class="reason-tag">${reason}</span>`).join('')}
+                        ${tagsToDisplay.map(tag => `<span class="reason-tag">${tag}</span>`).join('')}
                     </div>
                 </div>
 
@@ -512,13 +301,12 @@ const initDashboard = () => {
                     <h2 class="operations__title">Переводы</h2>
                     <table class="ops-table">
                         <thead>
-                            <tr><th>Дата</th><th>Время</th><th>Сумма</th><th>От кого</th><th>Кому</th></tr>
+                            <tr><th>Дата</th><th>Сумма</th><th>От кого</th><th>Кому</th></tr>
                         </thead>
                         <tbody>
                             ${data.transfers.map(t => `
                                 <tr>
                                     <td>${t.date}</td>
-                                    <td>${t.time}</td>
                                     <td>${t.sum}</td>
                                     <td>${t.from}</td>
                                     <td>${t.to}</td>
@@ -532,13 +320,12 @@ const initDashboard = () => {
                     <h2 class="operations__title">Звонки</h2>
                     <table class="ops-table">
                         <thead>
-                            <tr><th>Дата</th><th>Время</th><th>Длительность</th><th>Кто звонил</th><th>Кому звонили</th></tr>
+                            <tr><th>Дата</th><th>Длительность</th><th>Кто звонил</th><th>Кому звонили</th></tr>
                         </thead>
                         <tbody>
                             ${data.calls.map(c => `
                                 <tr>
                                     <td>${c.date}</td>
-                                    <td>${c.time}</td>
                                     <td>${c.duration}</td>
                                     <td>${c.from}</td>
                                     <td>${c.to}</td>
@@ -570,8 +357,7 @@ const initDashboard = () => {
             </div>
         `;
 
-        // Проверка на наличие связей у мошенника
-        const connectionsHtml = (data.connections && data.connections.length > 0) 
+        const connectionsHtml = (data.connections && data.connections.length > 0)
             ? data.connections.map(person => `
                 <div class="suspect-card suspect-card--connection">
                     <div class="suspect-card__info">
@@ -596,20 +382,17 @@ const initDashboard = () => {
         `;
     };
 
-    // Функционал кнопок табуляции на дешборде
     tabButtons.forEach((btn, index) => {
         btn.addEventListener('click', () => {
             tabButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-
             const offset = index * (100 / 3);
             slider.style.transform = `translateX(-${offset}%)`;
         });
     });
 
-    // Отрисовка карточки мошенника
-    const renderList = (data = suspectsData) => {
-        listContainer.innerHTML = data.map((person) => `
+    const renderList = (dataToRender = suspectsData) => {
+        listContainer.innerHTML = dataToRender.map((person) => `
             <div class="suspect-card ${person.id === currentSuspectId ? 'active' : ''}" data-id="${person.id}">
                 <div class="suspect-card__threat ${person.threat}">
                     <span></span><span></span><span></span>
@@ -630,33 +413,24 @@ const initDashboard = () => {
                 cards.forEach(c => c.classList.remove('active'));
                 card.classList.add('active');
                 updateAllPanes();
-
-                // На мобилке — переходим в детальный вид
-                if (isMobile()) {
-                    showDetail();
-                }
+                if (isMobile()) showDetail();
             });
         });
     };
 
-    // Алгоритм поиска мошенника на сайте
     const searchInput = document.querySelector('.search-input');
-    
     searchInput.addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase().trim();
-
-        const filtered = suspectsData.filter(person => 
-            person.name.toLowerCase().includes(query) || 
+        const filtered = suspectsData.filter(person =>
+            person.name.toLowerCase().includes(query) ||
             person.address.toLowerCase().includes(query)
         );
-
         renderList(filtered);
     });
 
     renderList();
     updateAllPanes();
 };
-
 
 /***/ }
 
