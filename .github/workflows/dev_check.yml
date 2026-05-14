@@ -3,6 +3,7 @@ name: Dev Branch Check
 on:
   push:
     branches:
+      - main
       - dev_sasha_test
   pull_request:
     branches:
@@ -12,8 +13,10 @@ jobs:
   my-super-test-job:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout main
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Set up Python
         uses: actions/setup-python@v5
