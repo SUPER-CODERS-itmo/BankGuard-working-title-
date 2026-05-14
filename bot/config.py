@@ -38,8 +38,7 @@ class Config:
     api_token:    str = os.getenv("BEN_API_TOKEN",  "secret-token-123")
 
     # ── Пути к данным ───────────────────────────────────────────────────
-    users_db_path:   str = os.getenv("USERS_DB",        "../data/bot_users.db")
-    fraud_cases_csv: str = os.getenv("FRAUD_CASES_CSV", "../data/fraud_cases_detected.csv")
+    users_db_path:   str = os.getenv("USERS_DB", "backend/data/bot_users.db")
 
     # ── Поллинг ─────────────────────────────────────────────────────────
     poll_interval: int = int(os.getenv("POLL_INTERVAL", "60"))
